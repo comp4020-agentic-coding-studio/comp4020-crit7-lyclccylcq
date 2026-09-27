@@ -15,6 +15,13 @@
       "when": 1790499546204,
       "tag": "0001_peaceful_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790499994502,
+      "tag": "0002_seed_chifley_rooms",
+      "breakpoints": true
     }
   ]
 }
