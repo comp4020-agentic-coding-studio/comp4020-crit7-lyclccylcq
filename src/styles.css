@@ -5,6 +5,8 @@ body {
   --surface: #ffffff;
   --canvas: #f5f5f2;
   --gold: #be830e;
+  /* Gold for text and focus: 5.2:1 on the canvas, where --gold is only 3:1. */
+  --gold-text: #8a5e0a;
   --gold-soft: #f6ecd7;
   --danger: #a3261b;
   --radius: 12px;
@@ -70,7 +72,7 @@ main {
 }
 .eyebrow {
   margin: 0 0 0.5rem;
-  color: var(--gold);
+  color: var(--gold-text);
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -147,7 +149,12 @@ button {
 }
 
 :is(input, select, button, a):focus-visible {
-  outline: 3px solid var(--gold);
+  outline: 3px solid var(--gold-text);
+  outline-offset: 2px;
+}
+/* Date and time inputs move focus inside themselves (segments, picker button). */
+.field input:is([type="date"], [type="time"]):focus-within {
+  outline: 3px solid var(--gold-text);
   outline-offset: 2px;
 }
 

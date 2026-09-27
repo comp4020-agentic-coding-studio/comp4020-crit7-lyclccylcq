@@ -23,11 +23,24 @@ interface is organised around rooms.
    facilities or computer equipment under **More filters**.
 2. See only the spaces that seat that many people and have no booking
    overlapping that time, best fit first.
-3. Press **Book space** on one, check the details, and **Confirm booking**.
-   Nothing is booked until you confirm, and the server checks again that the
-   space is still free.
-4. It appears in **My bookings**, and it's still there after a reload. You can
-   cancel it there, which frees the space straight away.
+3. **Book space** opens a review page. Nothing is booked yet; **Confirm
+   booking** books it, and the server checks again that the space is still
+   free. If someone got there first, you're told and sent back to your search.
+4. It appears in **My bookings**, and it's still there after a reload.
+5. **Cancel booking** frees the space straight away.
+
+## My bookings
+
+Bookings are split by time, using Canberra's clock:
+
+- **Active** bookings haven't ended yet. The newest booking you made comes
+  first, and each can be cancelled.
+- **Past** bookings have ended. They stay as completed history, most recently
+  ended first, and can't be cancelled: the server refuses, even if the request
+  bypasses the page.
+
+A cancelled booking is deleted, so it leaves no history; a completed one
+stays.
 
 ## The data
 
@@ -54,7 +67,7 @@ several equipment types matches any of them.
 
 ## What good looks like here
 
-- **Only bookable rooms are shown.** Search filters by capacity and by
+- **Only bookable spaces are shown.** Search filters by capacity and by
   existing bookings, so there is nothing left to scan.
 - **Bookings can't collide.** Bookings are half-open intervals `[start, end)`:
   a 13:00–14:00 booking followed by 14:00–15:00 is fine, and any real overlap
@@ -62,8 +75,9 @@ several equipment types matches any of them.
 - **It persists.** Bookings live in SQLite on the Fly.io volume, so they
   survive reloads, restarts and redeploys.
 
-The tests in `spec/` enforce those three. The visual design is still a
-judgement call, and is still being improved.
+The tests in `spec/` enforce those three. The visual design is a judgement
+call: one question at the top, the search in a single panel, and each result a
+card with only what you need to choose.
 
 ## Deliberately not built
 
@@ -72,8 +86,7 @@ judgement call, and is still being improved.
   booking interaction.
 - **Menzies and other branches**, maps, and a live connection to LibCal.
 - Editing bookings (cancel and book again), recurring bookings, check-in,
-  reminders, admin screens, quotas and opening hours. Cancelling deletes the
-  booking rather than keeping a history.
+  reminders, admin screens, quotas and opening hours.
 
 ## Running it
 
@@ -88,7 +101,9 @@ pnpm check        # typecheck, build, and run the tests in spec/
 
 Schema changes go through Drizzle: edit `src/lib/schema.ts`, run
 `pnpm db:generate`, and commit the migration. Migrations (including the room
-seed) run automatically when the server starts.
+seed) run automatically when the server first touches the database.
 
-Deploy with `flyctl deploy --remote-only --ha=false -a comp4020-crit7-lyclccylcq`,
-with the course's Fly token in the gitignored `mise.local.toml`.
+Every push to `main` runs the checks and, if they pass, deploys to Fly.io. To
+deploy by hand, run `flyctl deploy --remote-only --ha=false -a
+comp4020-crit7-lyclccylcq` with the course's Fly token in the gitignored
+`mise.local.toml`.

@@ -25,6 +25,6 @@ the function until it failed for the right reason.
 I want to decide what must always be true and make the system enforce it,
 rather than hope every caller remembers. Working with an agent makes that
 matter more: it builds whatever I describe quickly, so my job is to describe
-the right thing and prove it holds. The visual redesign isn't finished yet, but
-because the behaviour is settled first, I can change the design without
-breaking it.
+the right thing and prove it holds. Settling behaviour first paid off: the
+redesign, the review step and the computer desks changed the pages a lot, and
+the overlap tests from the first hour kept passing.

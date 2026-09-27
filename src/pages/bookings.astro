@@ -18,14 +18,14 @@ const INVALID: Failure = {
 const FAILURES: Record<BookingError["reason"], Failure> = {
   conflict: {
     status: 409,
-    title: "Room no longer available",
-    message: "This room was booked while you were reviewing it.",
+    title: "Space no longer available",
+    message: "This space was booked while you were reviewing it.",
     action: "Back to search",
   },
   "no-such-room": {
     status: 404,
-    title: "Room not found",
-    message: "This room may no longer be available.",
+    title: "Space not found",
+    message: "This space may no longer be available.",
     action: "Find a space",
   },
   "invalid-interval": INVALID,

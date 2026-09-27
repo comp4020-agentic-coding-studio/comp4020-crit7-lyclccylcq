@@ -24,11 +24,11 @@ if (!room) Astro.response.status = 404;
 else if (!slot) Astro.response.status = 400;
 ---
 
-<Layout title={!room ? "Room not found — ANU Library" : !slot ? "We couldn't create this booking — ANU Library" : "Review your booking — ANU Library"}>
+<Layout title={!room ? "Space not found — ANU Library" : !slot ? "We couldn't create this booking — ANU Library" : "Review your booking — ANU Library"}>
   {!room ? (
     <StatusPanel
-      title="Room not found"
-      message="This room may no longer be available."
+      title="Space not found"
+      message="This space may no longer be available."
       actions={[{ href: backToResults, label: "Find a space" }]}
     />
   ) : !slot ? (

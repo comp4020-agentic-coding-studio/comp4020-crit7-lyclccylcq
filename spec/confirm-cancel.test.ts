@@ -222,8 +222,8 @@ describe("feedback states", () => {
 
     expect(res.status).toBe(409);
     expect(page.hasNav).toBe(true);
-    expect(page.heading).toBe("Room no longer available");
-    expect(page.text).toContain("This room was booked while you were reviewing it.");
+    expect(page.heading).toBe("Space no longer available");
+    expect(page.text).toContain("This space was booked while you were reviewing it.");
     const back = new URL(page.link("Back to search")?.getAttribute("href") ?? "", baseUrl);
     expect(back.searchParams.get("library")).toBe("hancock");
     expect((await fetch(back)).status).toBe(200);
@@ -244,20 +244,20 @@ describe("feedback states", () => {
     expect(page.link("Back to search")).toBeTruthy();
   });
 
-  it("answers 404 Room not found when booking a room that doesn't exist", async () => {
+  it("answers 404 Space not found when booking a space that doesn't exist", async () => {
     const res = await booking({ roomId: "999999" });
     const page = await read(res);
 
     expect(res.status).toBe(404);
-    expect(page.heading).toBe("Room not found");
-    expect(page.text).toContain("This room may no longer be available.");
+    expect(page.heading).toBe("Space not found");
+    expect(page.text).toContain("This space may no longer be available.");
     expect(page.link("Find a space")).toBeTruthy();
   });
 
-  it("answers 404 Room not found on the review page for a missing room", async () => {
+  it("answers 404 Space not found on the review page for a missing space", async () => {
     const page = panel((await load(`/bookings/confirm?roomId=999999&date=${date}&start=18:00&duration=60`, 404)).document);
 
-    expect(page.heading).toBe("Room not found");
+    expect(page.heading).toBe("Space not found");
     expect(page.link("Find a space")).toBeTruthy();
   });
 
