@@ -3,44 +3,47 @@
 ## What I built
 
 An availability-first replacement for the ANU Library study-room booking
-interface: say when, how long and how many, and see only rooms you can book. `README.md` has the argument.
+interface: say when, how long and how many, and see only rooms you can book.
+`README.md` has the argument.
 
 ## How I got here
 
 I chose this system because I use it, and its horizontally scrolling timetable
-is poor at answering "what can I book at this time?". I reframed the
-interaction from timetable-first to availability-first, and kept the data model
-to two entities, Room and Booking. I directed the agent to design before
-building:
+is poor at answering "what can I book at this time?". I kept the model to Room
+and Booking, and directed the agent to design before building:
 
 > Do not implement anything yet.
 
-We defined bookings as half-open intervals `[start, end)`, so back-to-back
-bookings are valid, and pinned that with a red-green cycle:
+Bookings are half-open intervals `[start, end)`, so back-to-back bookings are
+valid, pinned by a red-green cycle:
 [`51d4714...dccf6fb`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/51d4714...dccf6fb).
 I then moved validation into the domain:
 
 > Please make createBooking responsible for validating a booking rather than
 > relying on the caller to remember to call isRoomAvailable first.
 
-That cycle is
-[`356ec47...b5994ff`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/356ec47...b5994ff).
-I grounded the data in real Chifley Library room names and capacities from the
-current interface
-([`d0947d9`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/d0947d9)).
+([`356ec47...b5994ff`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/356ec47...b5994ff))
 
-Search filters by capacity and by booking overlap. I had the overlap case tested
-before any booking UI existed, seeding a booking straight into the test
-server's database:
-[`8b610e5...5a43f3b`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/8b610e5...5a43f3b).
-I left out a library filter (every room is in Chifley) and authentication, to
-focus on the booking interaction. A final cycle drove Search → Book → My
-Bookings → reload through the real app, with overlaps refused by the server:
-[`d7791f0...5b7e18f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/d7791f0...5b7e18f).
+Search filters by capacity and overlap, tested before any booking UI existed
+([`8b610e5...5a43f3b`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/8b610e5...5a43f3b)),
+then Search → Book → My Bookings → reload
+([`d7791f0...5b7e18f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/d7791f0...5b7e18f)).
+Authentication is deliberately out of scope. On Fly.io, a real booking survived
+a reload and disappeared from overlapping searches.
 
-I checked each red run before implementing; one failed on a missing module
-rather than the rule, so we stubbed the function to get a meaningful red.
+The redesign
+([`42e2c3d`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/42e2c3d))
+leads with "When do you need a room?", blocks past times and ranks best fit
+first
+([`70a9d19`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/70a9d19)).
+I grounded the data in LibCal: Chifley first
+([`d0947d9`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/d0947d9)),
+then Hancock, Law and facilities from my LibCal screenshots, with unverified
+facilities stored as unknown rather than guessed
+([`b1f1bcf`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/b1f1bcf)).
 
-After deploying to Fly.io, I booked Study Room 1.01 for 2026-10-01, 10:00–11:00
-on the live site. It survived a reload, disappeared from overlapping searches,
-and reappeared for a back-to-back 11:00 search.
+Correcting meant reading failures rather than patching them. One red run
+failed on a missing module, so we stubbed it until it failed on the rule. When
+searches crashed locally after the schema change, I had the agent reproduce it
+before fixing: the dev server had kept a Drizzle object built against the old
+schema. The fix was a restart and a `CLAUDE.md` rule, not a code change.
