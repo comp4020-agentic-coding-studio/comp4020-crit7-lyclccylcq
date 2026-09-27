@@ -84,6 +84,7 @@ export function findAvailableRooms(request: Interval & { people: number }): Room
         ),
       ),
     )
-    .orderBy(asc(rooms.name))
+    // Every result seats the party, so the smallest capacity is the best fit.
+    .orderBy(asc(rooms.capacity), asc(rooms.name))
     .all();
 }

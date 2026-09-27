@@ -15,6 +15,15 @@ export function timeRange(start: string, end: string): string {
     : `${from.text} ${from.period}–${to.text} ${to.period}`;
 }
 
+// "14:00", "15:00" → "2:00 PM – 3:00 PM"
+export function fullTimeRange(start: string, end: string): string {
+  const from = clock(start);
+  const to = clock(end);
+  return `${from.text} ${from.period} – ${to.text} ${to.period}`;
+}
+
+export const peopleLabel = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
+
 // "2026-10-01" → "Thu 1 Oct". Built in UTC so the server's timezone can't shift the day.
 export function shortDate(date: string): string {
   const [year, month, day] = date.split("-").map(Number);

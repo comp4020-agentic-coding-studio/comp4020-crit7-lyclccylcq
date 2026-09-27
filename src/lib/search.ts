@@ -1,11 +1,15 @@
 import type { Interval } from "./bookings";
 
 export const DURATIONS = [30, 60, 90, 120];
+export const PARTY_SIZES = [1, 2, 3, 4];
 
 export type Slot = Interval & { date: string; start: string; duration: number };
 export type SearchQuery = Slot & { people: number };
 
 type Fields = { get(name: string): unknown };
+
+const hhmm = (minutes: number) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
 // Turns date + start + duration into a same-day interval, or an error message.
 export function parseSlot(fields: Fields): { slot: Slot } | { error: string } {
@@ -20,15 +24,13 @@ export function parseSlot(fields: Fields): { slot: Slot } | { error: string } {
   const [hours, minutes] = start.split(":").map(Number);
   const endMinutes = hours * 60 + minutes + duration;
   if (endMinutes > 24 * 60) return { error: "The booking has to finish by midnight." };
-  const end = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
 
-  return { slot: { date, start, duration, startTime: `${date}T${start}`, endTime: `${date}T${end}` } };
+  return { slot: { date, start, duration, startTime: `${date}T${start}`, endTime: `${date}T${hhmm(endMinutes)}` } };
 }
 
-// The form's starting values: Canberra's current date and time, rounded up to
-// the start field's half-hour step. Canberra observes Sydney's timezone, and
-// the server itself runs in UTC.
-export function searchDefaults(now = new Date()): { date: string; start: string } {
+// Canberra's current date and minute of the day. Canberra observes Sydney's
+// timezone, and the server itself runs in UTC.
+export function canberraNow(now = new Date()): { date: string; minutes: number } {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
       timeZone: "Australia/Sydney",
@@ -42,27 +44,46 @@ export function searchDefaults(now = new Date()): { date: string; start: string 
       .formatToParts(now)
       .map((part) => [part.type, part.value]),
   );
-
-  const minutes = Math.ceil((Number(parts.hour) * 60 + Number(parts.minute)) / 30) * 30;
-  const day = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
-  if (minutes === 24 * 60) day.setUTCDate(day.getUTCDate() + 1);
-  const rounded = minutes % (24 * 60);
-
   return {
-    date: day.toISOString().slice(0, 10),
-    start: `${String(Math.floor(rounded / 60)).padStart(2, "0")}:${String(rounded % 60).padStart(2, "0")}`,
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: Number(parts.hour) * 60 + Number(parts.minute),
   };
 }
 
+// The form's starting values: now in Canberra, rounded up to the start
+// field's half-hour step.
+export function searchDefaults(now = new Date()): { date: string; start: string } {
+  const today = canberraNow(now);
+  const minutes = Math.ceil(today.minutes / 30) * 30;
+  const day = new Date(`${today.date}T00:00:00Z`);
+  if (minutes === 24 * 60) day.setUTCDate(day.getUTCDate() + 1);
+  return { date: day.toISOString().slice(0, 10), start: hhmm(minutes % (24 * 60)) };
+}
+
+// Separate from the overlap rule: a search can't start before now in Canberra.
+function pastError(slot: Slot, now: Date): string | null {
+  const today = canberraNow(now);
+  if (slot.date < today.date) return "Choose today or a later date.";
+  if (slot.date === today.date && slot.start < hhmm(today.minutes)) {
+    return "That start time has already passed. Choose a later time.";
+  }
+  return null;
+}
+
 // Returns null when the form hasn't been submitted, and an error when it has
-// but a field is missing or malformed.
-export function parseSearch(params: URLSearchParams): { query: SearchQuery } | { error: string } | null {
+// but a field is missing, malformed or in the past.
+export function parseSearch(
+  params: URLSearchParams,
+  now = new Date(),
+): { query: SearchQuery } | { error: string } | null {
   if (!["date", "start", "duration", "people"].some((name) => params.get(name))) return null;
 
   const parsed = parseSlot(params);
   if ("error" in parsed) return parsed;
+  const past = pastError(parsed.slot, now);
+  if (past) return { error: past };
   const people = Number(params.get("people"));
-  if (!Number.isInteger(people) || people < 1) return { error: "Enter how many people are coming." };
+  if (!PARTY_SIZES.includes(people)) return { error: "Choose how many people are coming." };
 
   return { query: { ...parsed.slot, people } };
 }

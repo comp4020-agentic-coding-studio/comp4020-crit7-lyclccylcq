@@ -38,6 +38,40 @@ describe("search page", () => {
     expect(doc.querySelector<HTMLInputElement>("#start")?.value).toMatch(/^([01]\d|2[0-3]):(00|30)$/);
   });
 
+  it("won't offer a date before today, and limits party size to 1–4", async () => {
+    const doc = await page("/");
+    const canberraDay = (offsetDays: number) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney" }).format(
+        new Date(Date.now() + offsetDays * 86_400_000),
+      );
+    const people = doc.querySelector("select#people");
+
+    // yesterday only if the page rendered just before midnight
+    expect([canberraDay(0), canberraDay(-1)]).toContain(doc.querySelector("#date")?.getAttribute("min"));
+    expect([...(people?.querySelectorAll("option") ?? [])].map((option) => option.getAttribute("value"))).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+    ]);
+  });
+
+  it("rejects a search in the past on the server, even when the form is bypassed", async () => {
+    const doc = await search({ date: "2020-01-01", people: "2" });
+
+    expect(doc.querySelector('[role="alert"]')?.textContent).toBeTruthy();
+    expect(doc.body.textContent).not.toContain("Study Room 1.01");
+  });
+
+  it("ranks the best-fitting rooms first: two-person rooms before four-person rooms for 2 people", async () => {
+    const text = (await search({ date: "2030-06-06", people: "2" })).body.textContent ?? "";
+    const positions = [...text.matchAll(/Study Room (\d\.\d+G?)/g)].map((match) => match[1]);
+    const twoPerson = ["4.02", "4.03", "4.04", "4.05", "4.06", "4.07"];
+
+    expect(positions).toHaveLength(17);
+    expect(positions.slice(0, 6).sort()).toEqual(twoPerson);
+  });
+
   it("keeps date and start from the URL exactly, instead of the defaults", async () => {
     const doc = await page("/?date=2030-06-03&start=09:45");
 
