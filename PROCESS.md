@@ -1,54 +1,46 @@
 # Process overview
 
-<!-- TEMPLATE: this file is a shape to fill in, not a form. Replace everything
-     in it with your own overview, and delete this comment — `pnpm
-     check:evidence` will remind you if it's still here. -->
-
-Written by you, for a reader: how you got from the brief to the harness and
-agentic workflow behind this submission. Markers read this file and follow its
-citations; they don't trawl the repo for evidence you didn't point at.
-
-This file is the shape; the course site's
-[assessment page](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#what-you-submit)
-is the requirement, and its
-[word counts](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#word-counts)
-cover every deliverable.
-
 ## What I built
 
-A sentence or two. `README.md` is where the account of what the app is and what
-good means here lives; this file is how you got there.
+An availability-first replacement for the ANU Library study-room booking
+interface: say when, how long and how many, and see only rooms you can book. `README.md` has the argument.
 
 ## How I got here
 
-The account of the process: how the work actually went, and how you knew the
-result was right. Tell it in whatever order makes it clear. A weekly prototype
-needs a paragraph or two; an assignment needs more.
+I chose this system because I use it, and its horizontally scrolling timetable
+is poor at answering "what can I book at this time?". I reframed the
+interaction from timetable-first to availability-first, and kept the data model
+to two entities, Room and Booking. I directed the agent to design before
+building:
 
-Cite the record as you go, as links whose text is the commit hash or range and
-whose target is this repo's commit or compare URL, so a reader clicks straight
-to the evidence:
+> Do not implement anything yet.
 
-- one commit: [`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d)
-- a range:
-  [`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
+We defined bookings as half-open intervals `[start, end)`, so back-to-back
+bookings are valid, and pinned that with a red-green cycle:
+[`51d4714...dccf6fb`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/51d4714...dccf6fb).
+I then moved validation into the domain:
 
-To pair a prompt with the commit it produced, quote the prompt (curated, not a
-full transcript) next to the citation:
+> Please make createBooking responsible for validating a booking rather than
+> relying on the caller to remember to call isRoomAvailable first.
 
-> the prompt, verbatim
+That cycle is
+[`356ec47...b5994ff`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/356ec47...b5994ff).
+I grounded the data in real Chifley Library room names and capacities from the
+current interface
+([`d0947d9`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/d0947d9)).
 
-Screenshots are welcome where one carries the point better than a sentence does.
-Commit the file to this repo and link it with a **relative** path, which is what
-makes it render on GitHub: `![alt text](docs/before.png)`. Images don't count
-towards the word count and don't replace the citation.
+Search filters by capacity and by booking overlap. I had the overlap case tested
+before any booking UI existed, seeding a booking straight into the test
+server's database:
+[`8b610e5...5a43f3b`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/8b610e5...5a43f3b).
+I left out a library filter (every room is in Chifley) and authentication, to
+focus on the booking interaction. A final cycle drove Search → Book → My
+Bookings → reload through the real app, with overlaps refused by the server:
+[`d7791f0...5b7e18f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/d7791f0...5b7e18f).
 
-## Before you ship
+I checked each red run before implementing; one failed on a missing module
+rather than the rule, so we stubbed the function to get a meaningful red.
 
-`pnpm check:evidence` verifies that this comment is gone, that your citations
-resolve to real commits, that a crit week's reflection entry is in
-`reflections/`, and that your `CLAUDE.md` is there. It checks that your account
-is traceable, not that it is good: that is the marker's call.
-
-Images aren't checked: unlike a citation whose SHA doesn't resolve, a broken
-image is visible the moment this file is rendered on GitHub.
+After deploying to Fly.io, I booked Study Room 1.01 for 2026-10-01, 10:00–11:00
+on the live site. It survived a reload, disappeared from overlapping searches,
+and reappeared for a back-to-back 11:00 search.

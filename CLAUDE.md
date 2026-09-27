@@ -1,11 +1,32 @@
-# Your harness
+# Harness
 
-This file is yours, and it arrives empty on purpose. The rules you hold the
-agent to are part of what gets marked, so they should be rules you decided on.
+An availability-first study-room booking prototype (Astro, Drizzle, SQLite on
+Fly.io). Read `README.md` for what it is; these are the rules for changing it.
 
-Nothing about the starter is recorded here. What the repo ships is explained
-where it lives --- `fly.toml`, the `Dockerfile`, the CI workflow and
-`spec/README.md` each say what they fix --- and the
-[course website](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/)
-publishes this deliverable's brief and spec. Read them before you plan or build;
-what the agent needs to carry from any of it is your call.
+## Domain rules
+
+- Bookings are half-open intervals `[start, end)`. Two bookings overlap exactly
+  when `existing.start < request.end AND existing.end > request.start`.
+  Back-to-back bookings are valid.
+- Times are fixed-width `'YYYY-MM-DDTHH:MM'` Canberra wall-clock strings,
+  compared as text. Never convert them to `Date`: the server runs in UTC.
+- `createBooking` in `src/lib/bookings.ts` is the only way a booking is
+  written. It rejects bad intervals, missing rooms and conflicts itself,
+  inside one transaction.
+- UI and routes must not bypass `createBooking` or re-implement the overlap
+  rule. Search uses `findAvailableRooms`, which shares the same condition.
+- Single-user prototype: no authentication. Don't add sign-in without being
+  asked.
+
+## Working here
+
+- Red first: write or extend a test in `spec/`, run it and see it fail for the
+  right reason, then implement. Red and green are committed separately.
+- Test contracts through the running app (HTTP) where possible, not
+  implementation details.
+- Schema changes only through `src/lib/schema.ts` + `pnpm db:generate`, with
+  the migration and its snapshot committed. Never edit the database by hand.
+- Add every new page to `spec/routes.ts` so the invariants cover it.
+- Keep `/api/events`: the CI deploy job probes it.
+- Don't create bookings on the live site unless asked. There is no cancel, so
+  they stay.
