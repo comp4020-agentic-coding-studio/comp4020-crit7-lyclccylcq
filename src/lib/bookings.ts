@@ -8,8 +8,26 @@ export function createRoom(room: Omit<Room, "id">): Room {
   return db.insert(rooms).values(room).returning().get();
 }
 
+export type BookingRejection = "invalid-interval" | "no-such-room" | "conflict";
+
+export class BookingError extends Error {
+  constructor(readonly reason: BookingRejection) {
+    super(`booking rejected: ${reason}`);
+    this.name = "BookingError";
+  }
+}
+
 export function createBooking(booking: { roomId: number } & Interval): Booking {
-  return db.insert(bookings).values(booking).returning().get();
+  if (booking.startTime >= booking.endTime) throw new BookingError("invalid-interval");
+
+  // better-sqlite3 is synchronous on one connection, so the check and the
+  // insert can't be interleaved with another booking.
+  return db.transaction((tx) => {
+    const room = tx.select({ id: rooms.id }).from(rooms).where(eq(rooms.id, booking.roomId)).get();
+    if (!room) throw new BookingError("no-such-room");
+    if (!isRoomAvailable(booking.roomId, booking)) throw new BookingError("conflict");
+    return tx.insert(bookings).values(booking).returning().get();
+  });
 }
 
 // Bookings are half-open [start, end): back-to-back bookings don't overlap.
