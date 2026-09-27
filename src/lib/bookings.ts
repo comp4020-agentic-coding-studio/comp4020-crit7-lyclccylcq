@@ -1,4 +1,4 @@
-import { and, eq, gt, lt } from "drizzle-orm";
+import { and, asc, eq, gt, gte, lt, notExists } from "drizzle-orm";
 import { db } from "./db";
 import { type Booking, bookings, type Room, rooms } from "./schema";
 
@@ -44,4 +44,29 @@ export function isRoomAvailable(roomId: number, request: Interval): boolean {
     )
     .get();
   return conflict === undefined;
+}
+
+export function findAvailableRooms(request: Interval & { people: number }): Room[] {
+  return db
+    .select()
+    .from(rooms)
+    .where(
+      and(
+        gte(rooms.capacity, request.people),
+        notExists(
+          db
+            .select({ id: bookings.id })
+            .from(bookings)
+            .where(
+              and(
+                eq(bookings.roomId, rooms.id),
+                lt(bookings.startTime, request.endTime),
+                gt(bookings.endTime, request.startTime),
+              ),
+            ),
+        ),
+      ),
+    )
+    .orderBy(asc(rooms.name))
+    .all();
 }

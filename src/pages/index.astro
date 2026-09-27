@@ -1,8 +1,14 @@
 ---
-import { listMessages } from "../lib/db";
+import { findAvailableRooms } from "../lib/bookings";
+import { DURATIONS, parseSearch } from "../lib/search";
 import "../styles.css";
 
-const messages = listMessages();
+const params = Astro.url.searchParams;
+const parsed = parseSearch(params);
+const query = parsed && "query" in parsed ? parsed.query : null;
+const error = parsed && "error" in parsed ? parsed.error : null;
+const results = query ? findAvailableRooms(query) : [];
+const selectedDuration = params.get("duration") ?? "60";
 ---
 
 <!doctype html>
@@ -10,44 +16,53 @@ const messages = listMessages();
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>COMP4020 prototype</title>
+    <title>Find a study room — ANU Library</title>
   </head>
   <body>
     <nav aria-label="site">
-      <a href="/">Guestbook</a>
+      <a href="/">Find a room</a>
       <a href="/readme/">About</a>
     </nav>
     <main>
-      <h1>Guestbook</h1>
-      <p>
-        A minimal full-stack starter: messages live in SQLite on the machine's
-        volume (state survives a reload and a redeploy), and new messages
-        appear in every open tab over a server-sent-events stream — open this
-        page twice and sign it in one. Replace all of this with your own
-        prototype.
-      </p>
-      <form method="post" action="/api/messages">
-        <label for="body">Leave a message</label>
-        <input id="body" name="body" required maxlength="500" />
-        <button>Sign</button>
+      <h1>Find a study room</h1>
+      <form method="get" action="/">
+        <label for="date">Date</label>
+        <input id="date" name="date" type="date" required value={params.get("date") ?? ""} />
+
+        <label for="start">Start time</label>
+        <input id="start" name="start" type="time" step="1800" required value={params.get("start") ?? ""} />
+
+        <label for="duration">Duration</label>
+        <select id="duration" name="duration">
+          {DURATIONS.map((minutes) => (
+            <option value={minutes} selected={String(minutes) === selectedDuration}>{minutes} minutes</option>
+          ))}
+        </select>
+
+        <label for="people">People</label>
+        <input id="people" name="people" type="number" min="1" required value={params.get("people") ?? "1"} />
+
+        <button>Find available rooms</button>
       </form>
-      <ul id="messages">
-        {messages.map((message) => <li>{message.body}</li>)}
-      </ul>
+
+      {error && <p role="alert">{error}</p>}
+
+      {query && (
+        <section aria-labelledby="results-heading">
+          <h2 id="results-heading">
+            Free on {query.date}, {query.start}–{query.endTime.slice(11)}, for {query.people}
+          </h2>
+          {results.length > 0 ? (
+            <ul>
+              {results.map((room) => (
+                <li>{room.name} — {room.library}, seats {room.capacity}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>No rooms are free for that time. Try another start time or a shorter booking.</p>
+          )}
+        </section>
+      )}
     </main>
-    <script>
-      // The live half of the demo: subscribe to the SSE stream and prepend
-      // messages as they arrive. The form itself needs none of this — its
-      // POST + redirect re-renders the submitting tab from SQLite; this
-      // stream is how every other tab finds out.
-      const list = document.querySelector("#messages");
-      const source = new EventSource("/api/events");
-      source.addEventListener("message", (event) => {
-        const message = JSON.parse(event.data);
-        const item = document.createElement("li");
-        item.textContent = message.body;
-        list?.prepend(item);
-      });
-    </script>
   </body>
 </html>
