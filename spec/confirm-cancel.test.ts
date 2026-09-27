@@ -111,7 +111,7 @@ describe("review before booking", () => {
     const res = await post("/bookings", confirmFormOf(window));
 
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("/bookings");
+    expect(res.headers.get("location")).toMatch(/^\/bookings\?booked=\d+$/);
     expect(bookingsAt("Study Room 3.27", `${date}T10:00`)).toBe(1);
   });
 
@@ -133,13 +133,13 @@ describe("review before booking", () => {
 
 describe("navigation", () => {
   it.each(["/bookings", "/readme/", "/bookings/confirm?roomId=1&date=2030-06-01&start=10:00&duration=60"])(
-    "%s links to Find a room, My bookings and About, and the brand goes home",
+    "%s links to Find a space and My bookings, and the brand goes home",
     async (path) => {
       const doc = (await load(path)).document;
       const nav = doc.querySelector('nav[aria-label="site"]');
       const hrefs = [...(nav?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"));
 
-      expect(hrefs).toEqual(["/", "/bookings", "/readme/"]);
+      expect(hrefs).toEqual(["/", "/bookings"]);
       expect(doc.querySelector("header a.brand")?.getAttribute("href")).toBe("/");
       for (const href of hrefs) expect((await fetch(new URL(href ?? "", baseUrl))).status).toBe(200);
     },
@@ -179,5 +179,108 @@ describe("cancelling a booking", () => {
     const res = await post("/bookings/cancel", new URLSearchParams({ bookingId: "999999" }));
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe("feedback states", () => {
+  const panel = (doc: Document) => ({
+    heading: doc.querySelector("h1")?.textContent?.trim(),
+    text: doc.querySelector("main")?.textContent ?? "",
+    link: (label: string) => [...doc.querySelectorAll("main a")].find((a) => a.textContent?.includes(label)),
+    hasNav: Boolean(doc.querySelector('nav[aria-label="site"]')),
+  });
+  const read = async (res: Response) => panel(new JSDOM(await res.text()).window.document);
+  const booking = (fields: Record<string, string>) =>
+    post("/bookings", new URLSearchParams({ date, start: "18:00", duration: "60", people: "2", library: "hancock", ...fields }));
+
+  it("says Booking confirmed, with the room and time, after confirming", async () => {
+    const { window } = await review("Study Room 3.33", "18:00");
+    const res = await post("/bookings", confirmFormOf(window));
+    const page = (await load(res.headers.get("location") ?? "")).document;
+    const status = page.querySelector('[role="status"]')?.textContent ?? "";
+
+    expect(status).toContain("Booking confirmed");
+    expect(status).toContain("Study Room 3.33");
+    expect(status).toContain("6:00–7:00 PM");
+    expect(page.querySelector("main li h2")).toBeTruthy();
+  });
+
+  it("says Booking cancelled in the same style after cancelling", async () => {
+    const page = (await load("/bookings?cancelled=1")).document;
+    const status = page.querySelector('[role="status"]');
+
+    expect(status?.textContent).toContain("Booking cancelled");
+    expect(status?.className).toContain("notice-success");
+  });
+
+  it("explains a 409 conflict and links back to the search", async () => {
+    const { window } = await review("Study Room 3.34", "18:00");
+    const confirmation = confirmFormOf(window);
+    bookDirectly("Study Room 3.34", `${date}T18:00`, `${date}T19:00`);
+    const res = await post("/bookings", confirmation);
+    const page = await read(res);
+
+    expect(res.status).toBe(409);
+    expect(page.hasNav).toBe(true);
+    expect(page.heading).toBe("Room no longer available");
+    expect(page.text).toContain("This room was booked while you were reviewing it.");
+    const back = new URL(page.link("Back to search")?.getAttribute("href") ?? "", baseUrl);
+    expect(back.searchParams.get("library")).toBe("hancock");
+    expect((await fetch(back)).status).toBe(200);
+  });
+
+  it.each<[Record<string, string>, string]>([
+    [{ duration: "45" }, "a malformed duration"],
+    [{ date: "2020-01-01" }, "a time in the past"],
+    [{ roomId: "abc" }, "a malformed room"],
+  ])("explains a 400 for %o (%s) without technical detail", async (fields) => {
+    const res = await booking({ roomId: "1", ...fields });
+    const page = await read(res);
+
+    expect(res.status).toBe(400);
+    expect(page.hasNav).toBe(true);
+    expect(page.heading).toBe("We couldn't create this booking");
+    expect(page.text).toContain("The selected booking details are no longer valid.");
+    expect(page.link("Back to search")).toBeTruthy();
+  });
+
+  it("answers 404 Room not found when booking a room that doesn't exist", async () => {
+    const res = await booking({ roomId: "999999" });
+    const page = await read(res);
+
+    expect(res.status).toBe(404);
+    expect(page.heading).toBe("Room not found");
+    expect(page.text).toContain("This room may no longer be available.");
+    expect(page.link("Find a space")).toBeTruthy();
+  });
+
+  it("answers 404 Room not found on the review page for a missing room", async () => {
+    const page = panel((await load(`/bookings/confirm?roomId=999999&date=${date}&start=18:00&duration=60`, 404)).document);
+
+    expect(page.heading).toBe("Room not found");
+    expect(page.link("Find a space")).toBeTruthy();
+  });
+
+  it("answers 400 on the review page for a time in the past", async () => {
+    const page = panel((await load("/bookings/confirm?roomId=1&date=2020-01-01&start=18:00&duration=60", 400)).document);
+
+    expect(page.heading).toBe("We couldn't create this booking");
+  });
+
+  it("answers 404 Booking not found when cancelling a booking that doesn't exist", async () => {
+    const res = await post("/bookings/cancel", new URLSearchParams({ bookingId: "999999" }));
+    const page = await read(res);
+
+    expect(res.status).toBe(404);
+    expect(page.hasNav).toBe(true);
+    expect(page.heading).toBe("Booking not found");
+    expect(page.link("My bookings")).toBeTruthy();
+  });
+
+  it("shows a styled page with navigation for an unknown address", async () => {
+    const page = panel((await load("/no-such-page", 404)).document);
+
+    expect(page.hasNav).toBe(true);
+    expect(page.link("Find a space")).toBeTruthy();
   });
 });

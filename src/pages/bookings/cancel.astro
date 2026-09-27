@@ -1,4 +1,5 @@
 ---
+import StatusPanel from "../../components/StatusPanel.astro";
 import Layout from "../../layouts/Layout.astro";
 import { cancelBooking } from "../../lib/bookings";
 
@@ -13,11 +14,12 @@ Astro.response.status = 404;
 ---
 
 <Layout title="Booking not found — ANU Library" current="bookings">
-  <section class="page-header" aria-labelledby="page-heading">
-    <h1 id="page-heading">That booking wasn't found</h1>
-    <p class="lede">It may already have been cancelled.</p>
-    <div class="actions">
-      <a class="button-primary" href="/bookings">My bookings</a>
-    </div>
-  </section>
+  <StatusPanel
+    title="Booking not found"
+    message="It may already have been cancelled."
+    actions={[
+      { href: "/bookings", label: "My bookings" },
+      { href: "/", label: "Find a space" },
+    ]}
+  />
 </Layout>

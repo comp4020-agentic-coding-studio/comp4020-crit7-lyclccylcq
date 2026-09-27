@@ -8,9 +8,8 @@ interface Props {
 
 const { title, current } = Astro.props;
 const links = [
-  { href: "/", label: "Find a room", page: "search" },
+  { href: "/", label: "Find a space", page: "search" },
   { href: "/bookings", label: "My bookings", page: "bookings" },
-  { href: "/readme/", label: "About", page: "about" },
 ];
 ---
 
@@ -24,7 +23,7 @@ const links = [
   <body>
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand" href="/">ANU Library <span>Study rooms</span></a>
+        <a class="brand" href="/">ANU Library <span>Study spaces</span></a>
         <nav aria-label="site">
           {links.map((link) => (
             <a href={link.href} aria-current={link.page === current ? "page" : undefined}>{link.label}</a>

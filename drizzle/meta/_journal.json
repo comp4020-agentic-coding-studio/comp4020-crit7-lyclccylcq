@@ -36,6 +36,20 @@
       "when": 1790511248963,
       "tag": "0004_seed_facilities_hancock_law",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790524640210,
+      "tag": "0005_dusty_gambit",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790524641078,
+      "tag": "0006_seed_chifley_computer_desks",
+      "breakpoints": true
     }
   ]
 }

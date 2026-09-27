@@ -8,9 +8,50 @@ export const LIBRARIES = [
   { value: "law", name: "Law Library" },
 ];
 
+export const SPACE_TYPES = [
+  { value: "study_room", label: "Study room", noun: ["study room", "study rooms"] },
+  { value: "computer_desk", label: "Computer desk", noun: ["computer desk", "computer desks"] },
+] as const;
+export const FACILITY_FILTERS = [
+  { value: "power", label: "Power" },
+  { value: "display", label: "Display" },
+  { value: "accessible", label: "Accessible" },
+  { value: "whiteboard", label: "Whiteboard" },
+] as const;
+export const DEVICE_FILTERS = [
+  { value: "mac", label: "Mac" },
+  { value: "windows", label: "Windows" },
+  { value: "monitor", label: "External monitor" },
+  { value: "none", label: "No equipment" },
+] as const;
+
+export type SpaceType = (typeof SPACE_TYPES)[number]["value"];
+export type Facility = (typeof FACILITY_FILTERS)[number]["value"];
+export type Device = (typeof DEVICE_FILTERS)[number]["value"];
+
 export type Slot = Interval & { date: string; start: string; duration: number };
-// library is null for "Any library".
-export type SearchQuery = Slot & { people: number; library: string | null };
+// library and type are null for "Any library" and "Any space".
+export type SearchQuery = Slot & {
+  people: number;
+  library: string | null;
+  type: SpaceType | null;
+  facilities: Facility[];
+  devices: Device[];
+};
+
+const SEARCH_FIELDS = ["date", "start", "duration", "people", "library", "type", "facility", "device"];
+
+// Carries a search forward (to the review page, and back to the results),
+// repeated facility/device values included.
+export function searchParamsFrom(fields: { getAll(name: string): unknown[] }): URLSearchParams {
+  const search = new URLSearchParams();
+  for (const name of SEARCH_FIELDS) {
+    for (const value of fields.getAll(name)) {
+      if (typeof value === "string" && value) search.append(name, value);
+    }
+  }
+  return search;
+}
 
 type Fields = { get(name: string): unknown };
 
@@ -67,7 +108,7 @@ export function searchDefaults(now = new Date()): { date: string; start: string 
 }
 
 // Separate from the overlap rule: a search can't start before now in Canberra.
-function pastError(slot: Slot, now: Date): string | null {
+export function pastError(slot: Slot, now = new Date()): string | null {
   const today = canberraNow(now);
   if (slot.date < today.date) return "Choose today or a later date.";
   if (slot.date === today.date && slot.start < hhmm(today.minutes)) {
@@ -94,5 +135,17 @@ export function parseSearch(
   const library = LIBRARIES.find((option) => option.value === libraryValue);
   if (libraryValue !== "any" && !library) return { error: "Choose a library." };
 
-  return { query: { ...parsed.slot, people, library: library?.name ?? null } };
+  const typeValue = params.get("type") ?? "any";
+  const type = SPACE_TYPES.find((option) => option.value === typeValue)?.value ?? null;
+  if (typeValue !== "any" && !type) return { error: "Choose a space type." };
+
+  const facilities = params.getAll("facility");
+  const devices = params.getAll("device");
+  const isFacility = (value: string): value is Facility => FACILITY_FILTERS.some((option) => option.value === value);
+  const isDevice = (value: string): value is Device => DEVICE_FILTERS.some((option) => option.value === value);
+  if (!facilities.every(isFacility) || !devices.every(isDevice)) return { error: "Choose filters from the list." };
+
+  return {
+    query: { ...parsed.slot, people, library: library?.name ?? null, type, facilities, devices },
+  };
 }

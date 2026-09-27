@@ -64,7 +64,7 @@ describe("booking flow", () => {
     const res = await post("/bookings", bookingForm);
 
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("/bookings");
+    expect(res.headers.get("location")).toMatch(/^\/bookings\?booked=\d+$/);
     expect(bookingsFor(room, `${date}T10:00`)).toHaveLength(1);
   });
 

@@ -22,6 +22,12 @@ export const rooms = sqliteTable("rooms", {
   name: text().notNull(),
   library: text().notNull(),
   capacity: int().notNull(),
+  // A study room or a computer desk: both are bookable spaces in the same system.
+  type: text({ enum: ["study_room", "computer_desk"] })
+    .notNull()
+    .default("study_room"),
+  // Computer desks only; null for study rooms.
+  deviceType: text("device_type", { enum: ["mac", "windows", "monitor", "none"] }),
   level: text(),
   // Facilities: true = verified present, false = verified absent, null = not verified.
   hasPower: int("has_power", { mode: "boolean" }),

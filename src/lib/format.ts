@@ -24,6 +24,10 @@ export function fullTimeRange(start: string, end: string): string {
 
 export const peopleLabel = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
 
+// A desk is for one person; a room seats "up to" its capacity.
+export const capacityLabel = (space: { type: string; capacity: number }) =>
+  space.type === "computer_desk" ? peopleLabel(space.capacity) : `Up to ${peopleLabel(space.capacity)}`;
+
 // "2026-10-01" → "Thu 1 Oct". Built in UTC so the server's timezone can't shift the day.
 export function shortDate(date: string): string {
   const [year, month, day] = date.split("-").map(Number);

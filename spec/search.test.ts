@@ -154,7 +154,7 @@ describe("library filter", () => {
     const libraries = new Set(cards(doc).map((card) => card.text.match(/(Chifley|Hancock|Law) Library/)?.[0]));
 
     expect(libraries).toEqual(new Set(["Chifley Library", "Hancock Library", "Law Library"]));
-    expect(doc.querySelector("h2")?.textContent).toMatch(/rooms available across 3 libraries/);
+    expect(doc.querySelector("h2")?.textContent).toMatch(/spaces available across 3 libraries/);
   });
 
   it("limits results to one library when one is chosen, and names it", async () => {
@@ -163,7 +163,7 @@ describe("library filter", () => {
 
     expect(found).toHaveLength(8); // nine Hancock rooms, less 3.37 which seats 3
     for (const card of found) expect(card.text).toContain("Hancock Library");
-    expect(doc.querySelector("h2")?.textContent).toMatch(/8 rooms available at Hancock Library/);
+    expect(doc.querySelector("h2")?.textContent).toMatch(/8 spaces available at Hancock Library/);
   });
 
   it("still puts the best fit first inside a library: Hancock 3.37 for 3 people", async () => {

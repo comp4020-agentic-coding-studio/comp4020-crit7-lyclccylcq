@@ -1,6 +1,7 @@
-import { and, asc, eq, gt, gte, lt, notExists } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, lt, notExists } from "drizzle-orm";
 import { db } from "./db";
 import { type Booking, bookings, type Room, rooms } from "./schema";
+import type { Device, Facility, SpaceType } from "./search";
 
 export type Interval = { startTime: string; endTime: string };
 
@@ -67,7 +68,23 @@ export function cancelBooking(id: number): boolean {
   return db.delete(bookings).where(eq(bookings.id, id)).run().changes > 0;
 }
 
-export function findAvailableRooms(request: Interval & { people: number; library: string | null }): Room[] {
+const FACILITY_COLUMNS = {
+  power: rooms.hasPower,
+  display: rooms.hasDisplay,
+  accessible: rooms.isAccessible,
+  whiteboard: rooms.hasWhiteboard,
+};
+
+export type SpaceSearch = Interval & {
+  people: number;
+  library: string | null; // null searches every library
+  type?: SpaceType | null; // null searches every kind of space
+  facilities?: Facility[]; // each must be verified true (AND); null never matches
+  devices?: Device[]; // any of these (OR); study rooms have none
+};
+
+export function findAvailableRooms(request: SpaceSearch): Room[] {
+  const { facilities = [], devices = [], type = null } = request;
   return db
     .select()
     .from(rooms)
@@ -75,6 +92,9 @@ export function findAvailableRooms(request: Interval & { people: number; library
       and(
         gte(rooms.capacity, request.people),
         request.library === null ? undefined : eq(rooms.library, request.library),
+        type === null ? undefined : eq(rooms.type, type),
+        ...facilities.map((facility) => eq(FACILITY_COLUMNS[facility], true)),
+        devices.length === 0 ? undefined : inArray(rooms.deviceType, devices),
         notExists(
           db
             .select({ id: bookings.id })

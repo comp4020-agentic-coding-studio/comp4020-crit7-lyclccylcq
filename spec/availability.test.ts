@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 // db.ts opens DATABASE_PATH at import time, so point it at a throwaway file first.
 process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), "availability-db-")), "test.db");
-const { createRoom, createBooking, isRoomAvailable } = await import("../src/lib/bookings");
+const { createRoom, createBooking, findAvailableRooms, isRoomAvailable } = await import("../src/lib/bookings");
 
 const at = (hhmm: string) => `2026-10-01T${hhmm}`;
 const newRoom = () => createRoom({ name: "Test room", library: "Test library", capacity: 4 });
@@ -79,5 +79,27 @@ describe("createBooking enforces its own invariants", () => {
     expect(() =>
       createBooking({ roomId: room.id, startTime: at("14:00"), endTime: at("15:00") }),
     ).not.toThrow();
+  });
+});
+
+describe("facility filters combine with AND and ignore unverified values", () => {
+  it("Power + Accessible needs both verified true", () => {
+    const library = "Filter Test Library";
+    const make = (name: string, hasPower: boolean | null, isAccessible: boolean | null) =>
+      createRoom({ name, library, capacity: 2, hasPower, isAccessible });
+    make("Both", true, true);
+    make("Power only", true, null);
+    make("Accessible only", null, true);
+    make("Power, not accessible", true, false);
+
+    const found = findAvailableRooms({
+      startTime: at("09:00"),
+      endTime: at("10:00"),
+      people: 1,
+      library,
+      facilities: ["power", "accessible"],
+    });
+
+    expect(found.map((room) => room.name)).toEqual(["Both"]);
   });
 });

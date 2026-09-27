@@ -1,0 +1,20 @@
+---
+// The one shape for every failure state: what happened, why, and what to do next.
+interface Props {
+  title: string;
+  message: string;
+  actions: { href: string; label: string }[];
+}
+
+const { title, message, actions } = Astro.props;
+---
+
+<section class="page-header status-panel" aria-labelledby="page-heading">
+  <h1 id="page-heading">{title}</h1>
+  <p class="notice notice-error" role="alert">{message}</p>
+  <div class="actions">
+    {actions.map((action, index) => (
+      <a class={index === 0 ? "button-primary" : "button-secondary"} href={action.href}>{action.label}</a>
+    ))}
+  </div>
+</section>

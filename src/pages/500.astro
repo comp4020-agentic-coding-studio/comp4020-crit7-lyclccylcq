@@ -1,0 +1,17 @@
+---
+// Astro renders this for any unhandled error, with status 500. The error
+// itself is deliberately not shown: it goes to the server log, not the page.
+import StatusPanel from "../components/StatusPanel.astro";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Something went wrong — ANU Library">
+  <StatusPanel
+    title="Something went wrong"
+    message="Please try again."
+    actions={[
+      { href: "/", label: "Find a space" },
+      { href: "/bookings", label: "My bookings" },
+    ]}
+  />
+</Layout>

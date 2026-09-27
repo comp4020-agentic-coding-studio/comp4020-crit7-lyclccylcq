@@ -1,9 +1,10 @@
 ---
 import Facilities from "../../components/Facilities.astro";
+import StatusPanel from "../../components/StatusPanel.astro";
 import Layout from "../../layouts/Layout.astro";
 import { getRoom, isRoomAvailable } from "../../lib/bookings";
-import { fullTimeRange, longDate, peopleLabel } from "../../lib/format";
-import { parseSlot } from "../../lib/search";
+import { capacityLabel, fullTimeRange, longDate } from "../../lib/format";
+import { parseSlot, pastError, searchParamsFrom } from "../../lib/search";
 
 // Review only: nothing is written here. Room details come from the database;
 // the query string only identifies the room and the slot.
@@ -11,83 +12,89 @@ const params = Astro.url.searchParams;
 const roomId = Number(params.get("roomId"));
 const room = Number.isInteger(roomId) && roomId > 0 ? getRoom(roomId) : undefined;
 const parsed = parseSlot(params);
-const slot = "slot" in parsed ? parsed.slot : null;
+const slot = "slot" in parsed && !pastError(parsed.slot) ? parsed.slot : null;
 const available = room && slot ? isRoomAvailable(room.id, slot) : false;
 
-const search = new URLSearchParams();
-for (const name of ["date", "start", "duration", "people", "library"]) {
-  const value = params.get(name);
-  if (value) search.set(name, value);
-}
+const search = searchParamsFrom(params);
 const backToResults = `/?${search}`;
+// Confirm re-sends the rest of the search so a conflict can link back to it.
+const carried = [...search].filter(([name]) => !["date", "start", "duration"].includes(name));
 
-if (!room || !slot) Astro.response.status = 400;
+if (!room) Astro.response.status = 404;
+else if (!slot) Astro.response.status = 400;
 ---
 
-<Layout title="Review your booking — ANU Library">
-  <section class="page-header" aria-labelledby="page-heading">
-    <p class="eyebrow">Almost done</p>
-    <h1 id="page-heading">Review your booking</h1>
-  </section>
-
-  {room && slot ? (
-    <section class="review" aria-label="Booking summary">
-      <dl>
-        <div>
-          <dt>Room</dt>
-          <dd class="room-title">{room.name}</dd>
-        </div>
-        <div>
-          <dt>Location</dt>
-          <dd>{room.level ? `${room.library} · ${room.level}` : room.library}</dd>
-        </div>
-        <div>
-          <dt>Booking</dt>
-          <dd>
-            <time datetime={slot.startTime}>{longDate(slot.date)}</time><br />
-            {fullTimeRange(slot.start, slot.endTime.slice(11))}
-          </dd>
-        </div>
-        <div>
-          <dt>Capacity</dt>
-          <dd>Up to {peopleLabel(room.capacity)}</dd>
-        </div>
-        <div>
-          <dt>Facilities</dt>
-          <dd><Facilities room={room} /></dd>
-        </div>
-      </dl>
-
-      {available ? (
-        <div class="actions">
-          <a class="button-secondary" href={backToResults}>Back to results</a>
-          <form method="post" action="/bookings">
-            <input type="hidden" name="roomId" value={room.id} />
-            <input type="hidden" name="date" value={slot.date} />
-            <input type="hidden" name="start" value={slot.start} />
-            <input type="hidden" name="duration" value={slot.duration} />
-            {params.get("people") && <input type="hidden" name="people" value={params.get("people")} />}
-            {params.get("library") && <input type="hidden" name="library" value={params.get("library")} />}
-            <button class="button-primary">Confirm booking</button>
-          </form>
-        </div>
-      ) : (
-        <>
-          <p class="notice notice-error" role="alert">This room is no longer available for that time.</p>
-          <div class="actions">
-            <a class="button-primary" href={backToResults}>Back to results</a>
-          </div>
-        </>
-      )}
-    </section>
+<Layout title={!room ? "Room not found — ANU Library" : !slot ? "We couldn't create this booking — ANU Library" : "Review your booking — ANU Library"}>
+  {!room ? (
+    <StatusPanel
+      title="Room not found"
+      message="This room may no longer be available."
+      actions={[{ href: backToResults, label: "Find a space" }]}
+    />
+  ) : !slot ? (
+    <StatusPanel
+      title="We couldn't create this booking"
+      message="The selected booking details are no longer valid. Please choose another time and try again."
+      actions={[{ href: backToResults, label: "Back to search" }]}
+    />
   ) : (
     <>
-      <p class="notice notice-error" role="alert">
-        {!room ? "That room couldn't be found." : "error" in parsed ? parsed.error : ""}
-      </p>
-      <div class="actions">
-        <a class="button-primary" href={backToResults}>Back to search</a>
-      </div>
+      <section class="page-header" aria-labelledby="page-heading">
+        <p class="eyebrow">Almost done</p>
+        <h1 id="page-heading">Review your booking</h1>
+      </section>
+
+      <section class="review" aria-label="Booking summary">
+        <dl>
+          <div>
+            <dt>Space</dt>
+            <dd class="room-title">{room.name}</dd>
+          </div>
+          <div>
+            <dt>Location</dt>
+            <dd>{room.level ? `${room.library} · ${room.level}` : room.library}</dd>
+          </div>
+          <div>
+            <dt>Booking</dt>
+            <dd>
+              <time datetime={slot.startTime}>{longDate(slot.date)}</time><br />
+              {fullTimeRange(slot.start, slot.endTime.slice(11))}
+            </dd>
+          </div>
+          <div>
+            <dt>Capacity</dt>
+            <dd>{capacityLabel(room)}</dd>
+          </div>
+          <div>
+            <dt>{room.type === "computer_desk" ? "Equipment" : "Facilities"}</dt>
+            <dd><Facilities room={room} /></dd>
+          </div>
+        </dl>
+
+        {available ? (
+          <div class="actions">
+            <a class="button-secondary" href={backToResults}>Back to results</a>
+            <form method="post" action="/bookings">
+              <input type="hidden" name="roomId" value={room.id} />
+              <input type="hidden" name="date" value={slot.date} />
+              <input type="hidden" name="start" value={slot.start} />
+              <input type="hidden" name="duration" value={slot.duration} />
+              {carried.map(([name, value]) => <input type="hidden" name={name} value={value} />)}
+              <button class="button-primary">Confirm booking</button>
+            </form>
+          </div>
+        ) : (
+          <>
+            <p class="notice notice-error" role="alert">
+              <strong>No longer available</strong>
+              <span>Someone booked this space for that time. Choose another one.</span>
+            </p>
+            <div class="actions">
+              <a class="button-primary" href={backToResults}>Back to results</a>
+            </div>
+          </>
+        )}
+      </section>
     </>
   )}
 </Layout>

@@ -1,9 +1,9 @@
-# Find a study room
+# Find a study space
 
-An availability-first redesign of the ANU Library study-room booking
-experience. You say when you need a room, for how long and for how many
-people, and it shows only the rooms you can actually book, rather than a
-timetable to scan.
+An availability-first redesign of ANU Library study-space booking, for study
+rooms and computer desks. You say when you need a space, for how long and for
+how many people, and it shows only the spaces you can actually book, rather
+than a timetable to scan.
 
 This is a single-user Crit 7 prototype. It doesn't use ANU sign-in or connect
 to LibCal: bookings made here live only in this app.
@@ -18,20 +18,24 @@ interface is organised around rooms.
 
 ## The flow
 
-1. Choose a date, a start time, a duration (30, 60, 90 or 120 minutes), how
-   many people are coming and, optionally, a library.
-2. See only the rooms that seat that many people and have no booking
+1. Choose a date, a start time, a duration (30, 60, 90 or 120 minutes) and how
+   many people are coming. Optionally narrow by space type, library, verified
+   facilities or computer equipment under **More filters**.
+2. See only the spaces that seat that many people and have no booking
    overlapping that time, best fit first.
-3. Press **Book room** on one, check the details, and **Confirm booking**.
+3. Press **Book space** on one, check the details, and **Confirm booking**.
    Nothing is booked until you confirm, and the server checks again that the
-   room is still free.
+   space is still free.
 4. It appears in **My bookings**, and it's still there after a reload. You can
-   cancel it there, which frees the room straight away.
+   cancel it there, which frees the space straight away.
 
 ## The data
 
-30 real study rooms across Chifley, Hancock and Law libraries. Names,
-capacities and levels come from the current ANU LibCal booking interface.
+30 real study rooms across Chifley, Hancock and Law libraries, and 21 Chifley
+Level 2 computer desks. Names, capacities, levels and desk equipment (Mac,
+Windows PC, external monitor or none) come from the current ANU LibCal booking
+interface. The desks are a demo subset, the ones visible in one LibCal view,
+not the full inventory.
 
 Each card shows only facilities that are verified:
 
@@ -41,7 +45,12 @@ Each card shows only facilities that are verified:
   LibCal shows on each room.
 - **Display and whiteboard** aren't verified for any room yet, so they're
   stored as unknown and not shown. Unknown is never displayed as "no".
+- **Computer desks' power and access** aren't shown in LibCal, so they're
+  unknown and a facility filter never matches them.
 - **Law rooms have no level**, because LibCal doesn't show one.
+
+Facility filters combine with AND and count only verified facilities; ticking
+several equipment types matches any of them.
 
 ## What good looks like here
 

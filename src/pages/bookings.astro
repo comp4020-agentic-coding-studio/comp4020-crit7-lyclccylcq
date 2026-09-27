@@ -1,13 +1,37 @@
 ---
 import Facilities from "../components/Facilities.astro";
+import StatusPanel from "../components/StatusPanel.astro";
 import Layout from "../layouts/Layout.astro";
 import { BookingError, createBooking, listBookings } from "../lib/bookings";
-import { fullTimeRange, longDate, peopleLabel } from "../lib/format";
-import { parseSlot } from "../lib/search";
+import { capacityLabel, fullTimeRange, longDate, timeRange } from "../lib/format";
+import { parseSlot, pastError, searchParamsFrom } from "../lib/search";
 
 // Single-user prototype: there's no sign-in, so My Bookings lists every booking.
-let error: string | null = null;
-let conflict = false;
+type Failure = { status: 400 | 404 | 409; title: string; message: string; action: string };
+
+const INVALID: Failure = {
+  status: 400,
+  title: "We couldn't create this booking",
+  message: "The selected booking details are no longer valid. Please choose another time and try again.",
+  action: "Back to search",
+};
+const FAILURES: Record<BookingError["reason"], Failure> = {
+  conflict: {
+    status: 409,
+    title: "Room no longer available",
+    message: "This room was booked while you were reviewing it.",
+    action: "Back to search",
+  },
+  "no-such-room": {
+    status: 404,
+    title: "Room not found",
+    message: "This room may no longer be available.",
+    action: "Find a space",
+  },
+  "invalid-interval": INVALID,
+};
+
+let failure: Failure | null = null;
 let backToSearch = "/";
 
 if (Astro.request.method === "POST") {
@@ -15,57 +39,60 @@ if (Astro.request.method === "POST") {
   const roomId = Number(form.get("roomId"));
   const parsed = parseSlot(form);
 
-  const search = new URLSearchParams();
-  for (const name of ["date", "start", "duration", "people", "library"]) {
-    const value = form.get(name);
-    if (typeof value === "string" && value) search.set(name, value);
-  }
-  backToSearch = `/?${search}`;
+  backToSearch = `/?${searchParamsFrom(form)}`;
 
-  if (!Number.isInteger(roomId) || roomId < 1) {
-    error = "That booking request didn't name a room.";
-    Astro.response.status = 400;
-  } else if ("error" in parsed) {
-    error = parsed.error;
-    Astro.response.status = 400;
+  if (!Number.isInteger(roomId) || roomId < 1 || "error" in parsed || pastError(parsed.slot)) {
+    failure = INVALID;
   } else {
     // createBooking re-checks availability at submission time: it has the final say.
+    // Anything other than a BookingError is unexpected and propagates to the 500 page.
     try {
-      createBooking({ roomId, startTime: parsed.slot.startTime, endTime: parsed.slot.endTime });
-      return Astro.redirect("/bookings", 303);
+      const booking = createBooking({ roomId, startTime: parsed.slot.startTime, endTime: parsed.slot.endTime });
+      return Astro.redirect(`/bookings?booked=${booking.id}`, 303);
     } catch (caught) {
       if (!(caught instanceof BookingError)) throw caught;
-      conflict = caught.reason === "conflict";
-      error = conflict
-        ? "Someone else booked it for that time after you started. Nothing was booked."
-        : caught.reason === "no-such-room"
-          ? "That room doesn't exist."
-          : "That booking's times aren't valid.";
-      Astro.response.status = conflict ? 409 : 400;
+      failure = FAILURES[caught.reason];
     }
   }
+  if (failure) Astro.response.status = failure.status;
 }
 
-const cancelled = Astro.url.searchParams.get("cancelled") === "1";
-const bookings = error ? [] : listBookings();
+const params = Astro.url.searchParams;
+const bookings = failure ? [] : listBookings();
+const booked = bookings.find((booking) => String(booking.id) === params.get("booked"));
+const cancelled = params.get("cancelled") === "1";
 ---
 
-<Layout title={conflict ? "Room no longer available — ANU Library" : "My bookings — ANU Library"} current="bookings">
-  {error ? (
-    <section class="page-header" aria-labelledby="page-heading">
-      <h1 id="page-heading">{conflict ? "This room is no longer available" : "That booking couldn't be made"}</h1>
-      <p class="notice notice-error" role="alert">{error}</p>
-      <div class="actions">
-        <a class="button-primary" href={backToSearch}>Back to search</a>
-        <a class="button-secondary" href="/bookings">My bookings</a>
-      </div>
-    </section>
+<Layout title={failure ? `${failure.title} — ANU Library` : "My bookings — ANU Library"} current="bookings">
+  {failure ? (
+    <StatusPanel
+      title={failure.title}
+      message={failure.message}
+      actions={[
+        { href: backToSearch, label: failure.action },
+        { href: "/bookings", label: "My bookings" },
+      ]}
+    />
   ) : (
     <>
       <section class="page-header" aria-labelledby="page-heading">
         <p class="eyebrow">Your rooms</p>
         <h1 id="page-heading">My bookings</h1>
-        {cancelled && <p class="notice notice-success" role="status">Booking cancelled.</p>}
+        {booked && (
+          <p class="notice notice-success" role="status">
+            <strong>Booking confirmed</strong>
+            <span>
+              {booked.room.name} · {longDate(booked.startTime.slice(0, 10))} ·{" "}
+              {timeRange(booked.startTime.slice(11), booked.endTime.slice(11))}
+            </span>
+          </p>
+        )}
+        {cancelled && (
+          <p class="notice notice-success" role="status">
+            <strong>Booking cancelled</strong>
+            <span>The room is free again for anyone to book.</span>
+          </p>
+        )}
       </section>
 
       {bookings.length > 0 ? (
@@ -82,7 +109,7 @@ const bookings = error ? [] : listBookings();
                 <p class="room-facts">
                   <time datetime={booking.startTime}>{date}</time>
                   <span>{fullTimeRange(booking.startTime.slice(11), booking.endTime.slice(11))}</span>
-                  <span>Up to {peopleLabel(booking.room.capacity)}</span>
+                  <span>{capacityLabel(booking.room)}</span>
                 </p>
                 <form method="post" action="/bookings/cancel">
                   <input type="hidden" name="bookingId" value={booking.id} />
@@ -97,8 +124,8 @@ const bookings = error ? [] : listBookings();
       ) : (
         <section class="empty" aria-labelledby="empty-heading">
           <h2 id="empty-heading">No bookings yet.</h2>
-          <p>Tell us when you need a room and we'll show you what's free.</p>
-          <a class="button-primary" href="/">Find a room</a>
+          <p>Tell us when you need a space and we'll show you what's free.</p>
+          <a class="button-primary" href="/">Find a space</a>
         </section>
       )}
     </>

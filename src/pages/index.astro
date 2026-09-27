@@ -2,23 +2,42 @@
 import Facilities from "../components/Facilities.astro";
 import Layout from "../layouts/Layout.astro";
 import { findAvailableRooms } from "../lib/bookings";
-import { durationLabel, fullTimeRange, peopleLabel, shortDate, timeRange } from "../lib/format";
-import { canberraNow, DURATIONS, LIBRARIES, PARTY_SIZES, parseSearch, searchDefaults } from "../lib/search";
+import { capacityLabel, durationLabel, fullTimeRange, peopleLabel, shortDate, timeRange } from "../lib/format";
+import {
+  canberraNow,
+  DEVICE_FILTERS,
+  DURATIONS,
+  FACILITY_FILTERS,
+  LIBRARIES,
+  PARTY_SIZES,
+  parseSearch,
+  SPACE_TYPES,
+  searchDefaults,
+  searchParamsFrom,
+} from "../lib/search";
 
 const params = Astro.url.searchParams;
 const parsed = parseSearch(params);
 const query = parsed && "query" in parsed ? parsed.query : null;
 const error = parsed && "error" in parsed ? parsed.error : null;
 const results = query ? findAvailableRooms(query) : [];
-const selectedDuration = params.get("duration") ?? "60";
 const defaults = searchDefaults();
 const today = canberraNow().date;
+
+const selectedDuration = params.get("duration") ?? "60";
 const selectedPeople = params.get("people") ?? "1";
+const selectedLibrary = params.get("library") ?? "any";
+const selectedType = params.get("type") ?? "any";
+const selectedFacilities = params.getAll("facility");
+const selectedDevices = params.getAll("device");
+const filtersActive = selectedFacilities.length > 0 || selectedDevices.length > 0;
+
 const when = query ? timeRange(query.start, query.endTime.slice(11)) : "";
 const cardTime = query ? fullTimeRange(query.start, query.endTime.slice(11)) : "";
-const selectedLibrary = params.get("library") ?? "any";
-const libraryCount = new Set(results.map((room) => room.library)).size;
-const roomsLabel = `${results.length} ${results.length === 1 ? "room" : "rooms"} available`;
+
+// "18 spaces available across 3 libraries", "8 computer desks available at Chifley Library"
+const [singular, plural] = SPACE_TYPES.find((option) => option.value === query?.type)?.noun ?? ["space", "spaces"];
+const libraryCount = new Set(results.map((space) => space.library)).size;
 const scope = !query
   ? ""
   : query.library
@@ -28,13 +47,27 @@ const scope = !query
       : results.length > 0
         ? ` at ${results[0].library}`
         : "";
+const heading =
+  results.length === 0
+    ? `No ${plural} available${scope}`
+    : `${results.length} ${results.length === 1 ? singular : plural} available${scope}`;
+
+const labelOf = (options: readonly { value: string; label: string }[], value: string) =>
+  options.find((option) => option.value === value)?.label ?? value;
+const filterSummary = [
+  ...(query?.facilities ?? []).map((value) => labelOf(FACILITY_FILTERS, value)),
+  (query?.devices ?? []).map((value) => labelOf(DEVICE_FILTERS, value)).join(" or "),
+].filter(Boolean);
+
+// The Book form carries the whole search, so the review page can link back to it.
+const carried = [...searchParamsFrom(params)];
 ---
 
-<Layout title="Find a study room — ANU Library" current="search">
+<Layout title="Find a study space — ANU Library" current="search">
   <section class="intro" aria-labelledby="page-heading">
     <p class="eyebrow">Chifley · Hancock · Law</p>
-    <h1 id="page-heading">When do you need a room?</h1>
-    <p class="lede">Tell us when and how many. You'll only see rooms you can actually book.</p>
+    <h1 id="page-heading">When do you need a space?</h1>
+    <p class="lede">Tell us when and how many. You'll only see spaces you can actually book.</p>
 
     <form class="search" method="get" action="/">
       <div class="field">
@@ -63,7 +96,16 @@ const scope = !query
           ))}
         </select>
       </div>
-      <div class="field field-library">
+      <div class="field">
+        <label for="type">Space type</label>
+        <select id="type" name="type">
+          <option value="any" selected={selectedType === "any"}>Any space</option>
+          {SPACE_TYPES.map((option) => (
+            <option value={option.value} selected={option.value === selectedType}>{option.label}</option>
+          ))}
+        </select>
+      </div>
+      <div class="field">
         <label for="library">Library</label>
         <select id="library" name="library">
           <option value="any" selected={selectedLibrary === "any"}>Any library</option>
@@ -72,7 +114,37 @@ const scope = !query
           ))}
         </select>
       </div>
-      <button class="search-button">Find rooms</button>
+      <button class="search-button">Find spaces</button>
+
+      <details class="more-filters" open={filtersActive}>
+        <summary>More filters{filtersActive && ` (${selectedFacilities.length + selectedDevices.length})`}</summary>
+        <div class="filter-groups">
+          <fieldset>
+            <legend>Facilities</legend>
+            {FACILITY_FILTERS.map((option) => (
+              <label class="check">
+                <input
+                  type="checkbox"
+                  name="facility"
+                  value={option.value}
+                  checked={selectedFacilities.includes(option.value)}
+                />
+                {option.label}
+              </label>
+            ))}
+          </fieldset>
+          <fieldset>
+            <legend>Computer equipment</legend>
+            {DEVICE_FILTERS.map((option) => (
+              <label class="check">
+                <input type="checkbox" name="device" value={option.value} checked={selectedDevices.includes(option.value)} />
+                {option.label}
+              </label>
+            ))}
+          </fieldset>
+        </div>
+        <p class="filter-note">Only verified facilities count. Equipment filters show computer desks.</p>
+      </details>
     </form>
 
     {error && <p class="notice notice-error" role="alert">{error}</p>}
@@ -81,36 +153,31 @@ const scope = !query
   {query ? (
     <section class="results" aria-labelledby="results-heading">
       <header class="results-header">
-        <h2 id="results-heading">
-          {results.length === 0 ? `No rooms available${scope}` : `${roomsLabel}${scope}`}
-        </h2>
+        <h2 id="results-heading">{heading}</h2>
         <p class="results-context">
           For {peopleLabel(query.people)} · {shortDate(query.date)} · {when}
         </p>
+        {filterSummary.length > 0 && <p class="results-context">With {filterSummary.join(" · ")}</p>}
       </header>
 
       {results.length > 0 ? (
         <ul class="room-grid">
-          {results.map((room) => (
+          {results.map((space) => (
             <li class="room-card">
-              <h3>{room.name}</h3>
+              <h3>{space.name}</h3>
               <p class="room-place">
-                {room.level && `${room.level} · `}{room.library}
+                {space.level && `${space.level} · `}{space.library}
               </p>
-              <Facilities room={room} />
+              <Facilities room={space} />
               <p class="room-facts">
-                <span>Up to {peopleLabel(room.capacity)}</span>
+                <span>{capacityLabel(space)}</span>
                 <span>{cardTime}</span>
               </p>
               <form method="get" action="/bookings/confirm">
-                <input type="hidden" name="roomId" value={room.id} />
-                <input type="hidden" name="date" value={query.date} />
-                <input type="hidden" name="start" value={query.start} />
-                <input type="hidden" name="duration" value={query.duration} />
-                <input type="hidden" name="people" value={query.people} />
-                <input type="hidden" name="library" value={selectedLibrary} />
-                <button class="book-button" aria-label={`Book ${room.name}`}>
-                  Book room <span aria-hidden="true">→</span>
+                <input type="hidden" name="roomId" value={space.id} />
+                {carried.map(([name, value]) => <input type="hidden" name={name} value={value} />)}
+                <button class="book-button" aria-label={`Book ${space.name}`}>
+                  Book space <span aria-hidden="true">→</span>
                 </button>
               </form>
             </li>
@@ -118,18 +185,17 @@ const scope = !query
         </ul>
       ) : (
         <p class="notice">
-          Nothing is free for that time and group size. Try a different start time, a shorter booking, a
-          smaller group or another library.
+          Nothing matches that time, group size and filters. Try a different start time, a shorter booking, fewer
+          filters or another library.
         </p>
       )}
     </section>
   ) : (
     !error && (
       <section class="empty" aria-labelledby="empty-heading">
-        <h2 id="empty-heading">Find the room that fits your plans.</h2>
-        <p>Choose when you need a space and we'll only show rooms that are actually available.</p>
+        <h2 id="empty-heading">Find the space that fits your plans.</h2>
+        <p>Choose when you need a study room or computer desk and we'll only show spaces that are actually available.</p>
       </section>
     )
   )}
 </Layout>
-
