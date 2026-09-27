@@ -1,0 +1,77 @@
+---
+import { BookingError, createBooking, listBookings } from "../lib/bookings";
+import { parseSlot } from "../lib/search";
+import "../styles.css";
+
+// Single-user prototype: there's no sign-in, so My Bookings lists every booking.
+let error: string | null = null;
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const roomId = Number(form.get("roomId"));
+  const parsed = parseSlot(form);
+
+  if (!Number.isInteger(roomId) || roomId < 1) {
+    error = "That booking request didn't name a room.";
+    Astro.response.status = 400;
+  } else if ("error" in parsed) {
+    error = parsed.error;
+    Astro.response.status = 400;
+  } else {
+    try {
+      createBooking({ roomId, startTime: parsed.slot.startTime, endTime: parsed.slot.endTime });
+      return Astro.redirect("/bookings", 303);
+    } catch (caught) {
+      if (!(caught instanceof BookingError)) throw caught;
+      error =
+        caught.reason === "conflict"
+          ? "That room is no longer free for that time."
+          : caught.reason === "no-such-room"
+            ? "That room doesn't exist."
+            : "That booking's times aren't valid.";
+      Astro.response.status = caught.reason === "conflict" ? 409 : 400;
+    }
+  }
+}
+
+const bookings = listBookings();
+---
+
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My bookings — ANU Library</title>
+  </head>
+  <body>
+    <nav aria-label="site">
+      <a href="/">Find a room</a>
+      <a href="/bookings">My bookings</a>
+      <a href="/readme/">About</a>
+    </nav>
+    <main>
+      <h1>My bookings</h1>
+
+      {error && (
+        <p role="alert">
+          {error} <a href="/">Search again</a>
+        </p>
+      )}
+
+      {bookings.length > 0 ? (
+        <ul>
+          {bookings.map((booking) => (
+            <li>
+              {booking.roomName}, {booking.library}:
+              <time datetime={booking.startTime}>{booking.startTime.slice(0, 10)}</time>,
+              {booking.startTime.slice(11)}–{booking.endTime.slice(11)}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>You have no bookings yet. <a href="/">Find a room</a></p>
+      )}
+    </main>
+  </body>
+</html>

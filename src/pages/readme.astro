@@ -21,6 +21,7 @@ const html = (await readme.compiledContent()).replace(/(src|href)="public\//g, '
   <body>
     <nav aria-label="site">
       <a href="/">Find a room</a>
+      <a href="/bookings">My bookings</a>
       <a href="/readme/">About</a>
     </nav>
     <main set:html={html} />

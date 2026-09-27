@@ -21,6 +21,7 @@ const selectedDuration = params.get("duration") ?? "60";
   <body>
     <nav aria-label="site">
       <a href="/">Find a room</a>
+      <a href="/bookings">My bookings</a>
       <a href="/readme/">About</a>
     </nav>
     <main>
@@ -55,7 +56,16 @@ const selectedDuration = params.get("duration") ?? "60";
           {results.length > 0 ? (
             <ul>
               {results.map((room) => (
-                <li>{room.name} — {room.library}, seats {room.capacity}</li>
+                <li>
+                  {room.name} — {room.library}, seats {room.capacity}
+                  <form method="post" action="/bookings">
+                    <input type="hidden" name="roomId" value={room.id} />
+                    <input type="hidden" name="date" value={query.date} />
+                    <input type="hidden" name="start" value={query.start} />
+                    <input type="hidden" name="duration" value={query.duration} />
+                    <button aria-label={`Book ${room.name}`}>Book</button>
+                  </form>
+                </li>
               ))}
             </ul>
           ) : (

@@ -46,6 +46,23 @@ export function isRoomAvailable(roomId: number, request: Interval): boolean {
   return conflict === undefined;
 }
 
+export type BookingDetails = Interval & { id: number; roomName: string; library: string };
+
+export function listBookings(): BookingDetails[] {
+  return db
+    .select({
+      id: bookings.id,
+      roomName: rooms.name,
+      library: rooms.library,
+      startTime: bookings.startTime,
+      endTime: bookings.endTime,
+    })
+    .from(bookings)
+    .innerJoin(rooms, eq(bookings.roomId, rooms.id))
+    .orderBy(asc(bookings.startTime), asc(rooms.name))
+    .all();
+}
+
 export function findAvailableRooms(request: Interval & { people: number }): Room[] {
   return db
     .select()
