@@ -43,3 +43,21 @@ describe("search accepts only the party sizes the rooms offer", () => {
     expect(parseSearch(params)).toHaveProperty("error");
   });
 });
+
+describe("search library scope", () => {
+  const params = (extra: Record<string, string>) =>
+    new URLSearchParams({ date: "2030-06-03", start: "10:00", duration: "60", people: "2", ...extra });
+
+  it("treats a missing library as Any library", () => {
+    expect(parseSearch(params({}))).toMatchObject({ query: { library: null } });
+    expect(parseSearch(params({ library: "any" }))).toMatchObject({ query: { library: null } });
+  });
+
+  it("maps a branch to its library name", () => {
+    expect(parseSearch(params({ library: "law" }))).toMatchObject({ query: { library: "Law Library" } });
+  });
+
+  it("rejects a library it doesn't know", () => {
+    expect(parseSearch(params({ library: "menzies" }))).toHaveProperty("error");
+  });
+});

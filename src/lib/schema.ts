@@ -22,6 +22,12 @@ export const rooms = sqliteTable("rooms", {
   name: text().notNull(),
   library: text().notNull(),
   capacity: int().notNull(),
+  level: text(),
+  // Facilities: true = verified present, false = verified absent, null = not verified.
+  hasPower: int("has_power", { mode: "boolean" }),
+  hasDisplay: int("has_display", { mode: "boolean" }),
+  isAccessible: int("is_accessible", { mode: "boolean" }),
+  hasWhiteboard: int("has_whiteboard", { mode: "boolean" }),
 });
 
 // Times are fixed-width 'YYYY-MM-DDTHH:MM' Canberra wall-clock strings, so

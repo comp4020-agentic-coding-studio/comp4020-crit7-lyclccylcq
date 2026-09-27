@@ -14,15 +14,27 @@ interface is organised around rooms.
 
 ## The flow
 
-1. Choose a date, a start time, a duration (30, 60, 90 or 120 minutes) and how
-   many people are coming.
+1. Choose a date, a start time, a duration (30, 60, 90 or 120 minutes), how
+   many people are coming and, optionally, a library.
 2. See only the rooms that seat that many people and have no booking
-   overlapping that time.
-3. Press **Book** on one.
+   overlapping that time, best fit first.
+3. Press **Book room** on one.
 4. It appears in **My bookings**, and it's still there after a reload.
 
-The rooms are the real Chifley Library study rooms, with the capacities shown in
-the current booking interface.
+## The data
+
+30 real study rooms across Chifley, Hancock and Law libraries. Names,
+capacities and levels come from the current ANU LibCal booking interface.
+
+Each card shows only facilities that are verified:
+
+- **Power and wheelchair access** for every room. For Chifley this is LibCal's
+  public statement that all rooms have both (the Hancock Basement study room,
+  not included here, is the exception). For Hancock and Law it's the icons
+  LibCal shows on each room.
+- **Display and whiteboard** aren't verified for any room yet, so they're
+  stored as unknown and not shown. Unknown is never displayed as "no".
+- **Law rooms have no level**, because LibCal doesn't show one.
 
 ## What good looks like here
 
@@ -42,7 +54,7 @@ judgement call, and is still being improved.
 - **Authentication.** This is a single-user prototype: there is no sign-in,
   and My bookings lists every booking. Leaving it out keeps the focus on the
   booking interaction.
-- **A library filter.** Every room in the prototype is in Chifley.
+- **Menzies and other branches**, maps, and a live connection to LibCal.
 - Cancelling or editing bookings, recurring bookings, check-in, reminders,
   admin screens, quotas and opening hours.
 

@@ -35,11 +35,6 @@ export function shortDate(date: string): string {
   }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
-// Chifley room names carry the floor: "Study Room 4.02" is on floor 4.
-export function floorOf(roomName: string): string | null {
-  return roomName.match(/(\d+)\.\d/)?.[1] ?? null;
-}
-
 export function durationLabel(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
   const hours = minutes / 60;

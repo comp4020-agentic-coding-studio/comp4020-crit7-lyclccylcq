@@ -2,9 +2,15 @@ import type { Interval } from "./bookings";
 
 export const DURATIONS = [30, 60, 90, 120];
 export const PARTY_SIZES = [1, 2, 3, 4];
+export const LIBRARIES = [
+  { value: "chifley", name: "Chifley Library" },
+  { value: "hancock", name: "Hancock Library" },
+  { value: "law", name: "Law Library" },
+];
 
 export type Slot = Interval & { date: string; start: string; duration: number };
-export type SearchQuery = Slot & { people: number };
+// library is null for "Any library".
+export type SearchQuery = Slot & { people: number; library: string | null };
 
 type Fields = { get(name: string): unknown };
 
@@ -84,6 +90,9 @@ export function parseSearch(
   if (past) return { error: past };
   const people = Number(params.get("people"));
   if (!PARTY_SIZES.includes(people)) return { error: "Choose how many people are coming." };
+  const libraryValue = params.get("library") ?? "any";
+  const library = LIBRARIES.find((option) => option.value === libraryValue);
+  if (libraryValue !== "any" && !library) return { error: "Choose a library." };
 
-  return { query: { ...parsed.slot, people } };
+  return { query: { ...parsed.slot, people, library: library?.name ?? null } };
 }

@@ -22,6 +22,20 @@
       "when": 1790499994502,
       "tag": "0002_seed_chifley_rooms",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790511248111,
+      "tag": "0003_orange_raider",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790511248963,
+      "tag": "0004_seed_facilities_hancock_law",
+      "breakpoints": true
     }
   ]
 }

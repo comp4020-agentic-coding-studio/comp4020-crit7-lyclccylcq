@@ -63,13 +63,14 @@ describe("search page", () => {
     expect(doc.body.textContent).not.toContain("Study Room 1.01");
   });
 
-  it("ranks the best-fitting rooms first: two-person rooms before four-person rooms for 2 people", async () => {
-    const text = (await search({ date: "2030-06-06", people: "2" })).body.textContent ?? "";
-    const positions = [...text.matchAll(/Study Room (\d\.\d+G?)/g)].map((match) => match[1]);
-    const twoPerson = ["4.02", "4.03", "4.04", "4.05", "4.06", "4.07"];
+  it("ranks the best-fitting rooms first across every library, for 2 people", async () => {
+    const doc = await search({ date: "2030-06-06", people: "2" });
+    const names = [...doc.querySelectorAll("h3")].map((heading) => heading.textContent?.trim());
+    const twoPerson = ["4.02", "4.03", "4.04", "4.05", "4.06", "4.07"].map((room) => `Study Room ${room}`);
 
-    expect(positions).toHaveLength(17);
-    expect(positions.slice(0, 6).sort()).toEqual(twoPerson);
+    expect(names).toHaveLength(30);
+    expect(names.slice(0, 6).sort()).toEqual(twoPerson);
+    expect(names[6]).toBe("Study Room 3.37"); // Hancock, seats 3
   });
 
   it("keeps date and start from the URL exactly, instead of the defaults", async () => {
@@ -120,5 +121,65 @@ describe("search results respect existing bookings", () => {
     if (listed) expect(text).toContain("Study Room 1.01");
     else expect(text).not.toContain("Study Room 1.01");
     expect(text).toContain("Study Room 1.02");
+  });
+});
+
+describe("library filter", () => {
+  // A date no other spec books, so every seeded room is free.
+  const date = "2030-06-07";
+  const cards = (doc: Document) =>
+    [...doc.querySelectorAll("h3")].map((heading) => ({
+      name: heading.textContent?.trim(),
+      text: heading.closest("li")?.textContent ?? "",
+    }));
+
+  it.each(["any", "chifley", "hancock", "law"])("renders a search for library=%s", async (library) => {
+    const res = await fetch(
+      new URL(`/?${new URLSearchParams({ date, start: "22:00", duration: "60", people: "1", library })}`, baseUrl),
+    );
+
+    expect(res.status).toBe(200);
+  });
+
+  it("offers Any library, Chifley, Hancock and Law, defaulting to Any library", async () => {
+    const select = (await page("/")).querySelector("select#library");
+    const options = [...(select?.querySelectorAll("option") ?? [])];
+
+    expect(options.map((option) => option.getAttribute("value"))).toEqual(["any", "chifley", "hancock", "law"]);
+    expect(select?.querySelector("option:checked")?.getAttribute("value")).toBe("any");
+  });
+
+  it("searches all three libraries for Any library, and says so", async () => {
+    const doc = await search({ date, people: "4", library: "any" });
+    const libraries = new Set(cards(doc).map((card) => card.text.match(/(Chifley|Hancock|Law) Library/)?.[0]));
+
+    expect(libraries).toEqual(new Set(["Chifley Library", "Hancock Library", "Law Library"]));
+    expect(doc.querySelector("h2")?.textContent).toMatch(/rooms available across 3 libraries/);
+  });
+
+  it("limits results to one library when one is chosen, and names it", async () => {
+    const doc = await search({ date, people: "4", library: "hancock" });
+    const found = cards(doc);
+
+    expect(found).toHaveLength(8); // nine Hancock rooms, less 3.37 which seats 3
+    for (const card of found) expect(card.text).toContain("Hancock Library");
+    expect(doc.querySelector("h2")?.textContent).toMatch(/8 rooms available at Hancock Library/);
+  });
+
+  it("still puts the best fit first inside a library: Hancock 3.37 for 3 people", async () => {
+    const found = cards(await search({ date, people: "3", library: "hancock" }));
+
+    expect(found).toHaveLength(9);
+    expect(found[0].name).toBe("Study Room 3.37");
+  });
+
+  it("shows only verified facilities, as text screen readers can read", async () => {
+    const card = (await search({ date, people: "3", library: "hancock" })).querySelector("li:has(h3)");
+    const facilities = card?.querySelector('[aria-label="Facilities"]');
+
+    expect(facilities?.textContent).toContain("Power");
+    expect(facilities?.textContent).toContain("Accessible");
+    expect(facilities?.textContent).not.toMatch(/Display|Whiteboard/);
+    for (const icon of facilities?.querySelectorAll("svg") ?? []) expect(icon.getAttribute("aria-hidden")).toBe("true");
   });
 });

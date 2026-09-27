@@ -4,7 +4,7 @@ import { type Booking, bookings, type Room, rooms } from "./schema";
 
 export type Interval = { startTime: string; endTime: string };
 
-export function createRoom(room: Omit<Room, "id">): Room {
+export function createRoom(room: typeof rooms.$inferInsert): Room {
   return db.insert(rooms).values(room).returning().get();
 }
 
@@ -63,13 +63,15 @@ export function listBookings(): BookingDetails[] {
     .all();
 }
 
-export function findAvailableRooms(request: Interval & { people: number }): Room[] {
+// library: a library name to search only that branch, or null for all of them.
+export function findAvailableRooms(request: Interval & { people: number; library: string | null }): Room[] {
   return db
     .select()
     .from(rooms)
     .where(
       and(
         gte(rooms.capacity, request.people),
+        request.library === null ? undefined : eq(rooms.library, request.library),
         notExists(
           db
             .select({ id: bookings.id })
