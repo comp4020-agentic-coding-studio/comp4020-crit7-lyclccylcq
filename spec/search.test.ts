@@ -26,6 +26,25 @@ describe("search page", () => {
     }
   });
 
+  it("defaults the date to today in Canberra and the start to a half-hour time", async () => {
+    const doc = await page("/");
+    const canberraDay = (offsetDays: number) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney" }).format(
+        new Date(Date.now() + offsetDays * 86_400_000),
+      );
+
+    // tomorrow only when "now" rounds up past midnight
+    expect([canberraDay(0), canberraDay(1)]).toContain(doc.querySelector<HTMLInputElement>("#date")?.value);
+    expect(doc.querySelector<HTMLInputElement>("#start")?.value).toMatch(/^([01]\d|2[0-3]):(00|30)$/);
+  });
+
+  it("keeps date and start from the URL exactly, instead of the defaults", async () => {
+    const doc = await page("/?date=2030-06-03&start=09:45");
+
+    expect(doc.querySelector<HTMLInputElement>("#date")?.value).toBe("2030-06-03");
+    expect(doc.querySelector<HTMLInputElement>("#start")?.value).toBe("09:45");
+  });
+
   it("lists rooms big enough for the party, and leaves out ones that are too small", async () => {
     const text = (await search({ people: "3" })).body.textContent ?? "";
 

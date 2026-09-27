@@ -1,7 +1,7 @@
 ---
 import { findAvailableRooms } from "../lib/bookings";
 import { durationLabel, floorOf, shortDate, timeRange } from "../lib/format";
-import { DURATIONS, parseSearch } from "../lib/search";
+import { DURATIONS, parseSearch, searchDefaults } from "../lib/search";
 import "../styles.css";
 
 const params = Astro.url.searchParams;
@@ -10,6 +10,7 @@ const query = parsed && "query" in parsed ? parsed.query : null;
 const error = parsed && "error" in parsed ? parsed.error : null;
 const results = query ? findAvailableRooms(query) : [];
 const selectedDuration = params.get("duration") ?? "60";
+const defaults = searchDefaults();
 const when = query ? timeRange(query.start, query.endTime.slice(11)) : "";
 ---
 
@@ -41,11 +42,11 @@ const when = query ? timeRange(query.start, query.endTime.slice(11)) : "";
         <form class="search" method="get" action="/">
           <div class="field">
             <label for="date">Date</label>
-            <input id="date" name="date" type="date" required value={params.get("date") ?? ""} />
+            <input id="date" name="date" type="date" required value={params.get("date") ?? defaults.date} />
           </div>
           <div class="field">
             <label for="start">Start time</label>
-            <input id="start" name="start" type="time" step="1800" required value={params.get("start") ?? ""} />
+            <input id="start" name="start" type="time" step="1800" required value={params.get("start") ?? defaults.start} />
           </div>
           <div class="field">
             <label for="duration">Duration</label>

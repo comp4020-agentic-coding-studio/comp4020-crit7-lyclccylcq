@@ -25,6 +25,35 @@ export function parseSlot(fields: Fields): { slot: Slot } | { error: string } {
   return { slot: { date, start, duration, startTime: `${date}T${start}`, endTime: `${date}T${end}` } };
 }
 
+// The form's starting values: Canberra's current date and time, rounded up to
+// the start field's half-hour step. Canberra observes Sydney's timezone, and
+// the server itself runs in UTC.
+export function searchDefaults(now = new Date()): { date: string; start: string } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Australia/Sydney",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(now)
+      .map((part) => [part.type, part.value]),
+  );
+
+  const minutes = Math.ceil((Number(parts.hour) * 60 + Number(parts.minute)) / 30) * 30;
+  const day = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+  if (minutes === 24 * 60) day.setUTCDate(day.getUTCDate() + 1);
+  const rounded = minutes % (24 * 60);
+
+  return {
+    date: day.toISOString().slice(0, 10),
+    start: `${String(Math.floor(rounded / 60)).padStart(2, "0")}:${String(rounded % 60).padStart(2, "0")}`,
+  };
+}
+
 // Returns null when the form hasn't been submitted, and an error when it has
 // but a field is missing or malformed.
 export function parseSearch(params: URLSearchParams): { query: SearchQuery } | { error: string } | null {
