@@ -21,14 +21,21 @@ export class BookingError extends Error {
 export function createBooking(booking: { roomId: number } & Interval): Booking {
   if (booking.startTime >= booking.endTime) throw new BookingError("invalid-interval");
 
-  // better-sqlite3 is synchronous on one connection, so the check and the
-  // insert can't be interleaved with another booking.
-  return db.transaction((tx) => {
-    const room = tx.select({ id: rooms.id }).from(rooms).where(eq(rooms.id, booking.roomId)).get();
-    if (!room) throw new BookingError("no-such-room");
-    if (!isRoomAvailable(booking.roomId, booking)) throw new BookingError("conflict");
-    return tx.insert(bookings).values(booking).returning().get();
-  });
+  // The check and the insert share one transaction, so no booking can slip in
+  // between them. It is IMMEDIATE because another connection may be writing
+  // to the same file (the spec's seeding connections do): a deferred
+  // transaction that reads first can't upgrade to a write once someone else
+  // has committed, and fails with "database is locked" instead of waiting.
+  // Taking the write lock up front makes other writers wait (busy timeout).
+  return db.transaction(
+    (tx) => {
+      const room = tx.select({ id: rooms.id }).from(rooms).where(eq(rooms.id, booking.roomId)).get();
+      if (!room) throw new BookingError("no-such-room");
+      if (!isRoomAvailable(booking.roomId, booking)) throw new BookingError("conflict");
+      return tx.insert(bookings).values(booking).returning().get();
+    },
+    { behavior: "immediate" },
+  );
 }
 
 // Bookings are half-open [start, end): back-to-back bookings don't overlap.
