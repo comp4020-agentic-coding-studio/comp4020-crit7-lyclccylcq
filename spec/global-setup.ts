@@ -8,6 +8,7 @@ import type { TestProject } from "vitest/node";
 declare module "vitest" {
   export interface ProvidedContext {
     baseUrl: string;
+    databasePath: string;
   }
 }
 
@@ -28,12 +29,13 @@ export default async function setup(project: TestProject): Promise<() => void> {
     });
   });
 
+  const databasePath = join(mkdtempSync(join(tmpdir(), "spec-db-")), "test.db");
   const server = spawn("node", [entry], {
     env: {
       ...process.env,
       HOST: "127.0.0.1",
       PORT: String(port),
-      DATABASE_PATH: join(mkdtempSync(join(tmpdir(), "spec-db-")), "test.db"),
+      DATABASE_PATH: databasePath,
     },
     stdio: "ignore",
   });
@@ -54,6 +56,8 @@ export default async function setup(project: TestProject): Promise<() => void> {
   }
 
   project.provide("baseUrl", baseUrl);
+  // Lets a spec seed state the UI can't create yet, in the server's own database.
+  project.provide("databasePath", databasePath);
   return () => {
     server.kill();
   };
