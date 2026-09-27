@@ -107,13 +107,18 @@ export function searchDefaults(now = new Date()): { date: string; start: string 
   return { date: day.toISOString().slice(0, 10), start: hhmm(minutes % (24 * 60)) };
 }
 
+// Now in Canberra, in the same 'YYYY-MM-DDTHH:MM' form as booking times, so
+// the two compare as text. The one definition of "now" for search and bookings.
+export function canberraStamp(now = new Date()): string {
+  const today = canberraNow(now);
+  return `${today.date}T${hhmm(today.minutes)}`;
+}
+
 // Separate from the overlap rule: a search can't start before now in Canberra.
 export function pastError(slot: Slot, now = new Date()): string | null {
-  const today = canberraNow(now);
-  if (slot.date < today.date) return "Choose today or a later date.";
-  if (slot.date === today.date && slot.start < hhmm(today.minutes)) {
-    return "That start time has already passed. Choose a later time.";
-  }
+  const stamp = canberraStamp(now);
+  if (slot.date < stamp.slice(0, 10)) return "Choose today or a later date.";
+  if (slot.startTime < stamp) return "That start time has already passed. Choose a later time.";
   return null;
 }
 

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, inArray, lt, notExists } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte, notExists, type SQL } from "drizzle-orm";
 import { db } from "./db";
 import { type Booking, bookings, type Room, rooms } from "./schema";
 import type { Device, Facility, SpaceType } from "./search";
@@ -47,25 +47,46 @@ export function isRoomAvailable(roomId: number, request: Interval): boolean {
   return conflict === undefined;
 }
 
-export type BookingWithRoom = Interval & { id: number; room: Room };
+export type BookingWithRoom = Interval & { id: number; createdAt: string; room: Room };
 
-export function listBookings(): BookingWithRoom[] {
-  return db
-    .select()
-    .from(bookings)
-    .innerJoin(rooms, eq(bookings.roomId, rooms.id))
-    .orderBy(asc(bookings.startTime), asc(rooms.name))
-    .all()
-    .map((row) => ({ id: row.bookings.id, startTime: row.bookings.startTime, endTime: row.bookings.endTime, room: row.rooms }));
+// State comes from the end time: active while it ends after `now`, past once it
+// has ended. `now` is Canberra wall-clock ('YYYY-MM-DDTHH:MM'), passed in so
+// callers share one clock and tests can pin it.
+export function listBookings(now: string): { active: BookingWithRoom[]; past: BookingWithRoom[] } {
+  const query = (state: SQL, ...order: SQL[]) =>
+    db
+      .select()
+      .from(bookings)
+      .innerJoin(rooms, eq(bookings.roomId, rooms.id))
+      .where(state)
+      .orderBy(...order)
+      .all()
+      .map((row) => ({
+        id: row.bookings.id,
+        startTime: row.bookings.startTime,
+        endTime: row.bookings.endTime,
+        createdAt: row.bookings.createdAt,
+        room: row.rooms,
+      }));
+
+  return {
+    // createdAt has one-second resolution, so the id breaks ties in creation order.
+    active: query(gt(bookings.endTime, now), desc(bookings.createdAt), desc(bookings.id)),
+    past: query(lte(bookings.endTime, now), desc(bookings.endTime), desc(bookings.id)),
+  };
 }
 
 export function getRoom(id: number): Room | undefined {
   return db.select().from(rooms).where(eq(rooms.id, id)).get();
 }
 
-// Cancelling deletes the row; returns false when there was no such booking.
-export function cancelBooking(id: number): boolean {
-  return db.delete(bookings).where(eq(bookings.id, id)).run().changes > 0;
+// Cancelling deletes the row, but only while the booking hasn't ended.
+export function cancelBooking(id: number, now: string): "cancelled" | "not-found" | "ended" {
+  const booking = db.select().from(bookings).where(eq(bookings.id, id)).get();
+  if (!booking) return "not-found";
+  if (booking.endTime <= now) return "ended";
+  db.delete(bookings).where(eq(bookings.id, id)).run();
+  return "cancelled";
 }
 
 const FACILITY_COLUMNS = {

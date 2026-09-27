@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 
 // db.ts opens DATABASE_PATH at import time, so point it at a throwaway file first.
 process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), "availability-db-")), "test.db");
-const { createRoom, createBooking, findAvailableRooms, isRoomAvailable } = await import("../src/lib/bookings");
+const { cancelBooking, createRoom, createBooking, findAvailableRooms, isRoomAvailable, listBookings } =
+  await import("../src/lib/bookings");
 
 const at = (hhmm: string) => `2026-10-01T${hhmm}`;
 const newRoom = () => createRoom({ name: "Test room", library: "Test library", capacity: 4 });
@@ -101,5 +102,45 @@ describe("facility filters combine with AND and ignore unverified values", () =>
     });
 
     expect(found.map((room) => room.name)).toEqual(["Both"]);
+  });
+});
+
+describe("booking state comes from its end time, against a pinned now", () => {
+  const now = "2026-09-27T21:00"; // Canberra wall-clock, as canberraStamp would give it
+  const day = (hhmm: string) => `2026-09-27T${hhmm}`;
+
+  it("splits active (ends after now) from past (ends at or before now)", () => {
+    const room = newRoom();
+    const ended = createBooking({ roomId: room.id, startTime: day("19:00"), endTime: day("20:00") });
+    const endsNow = createBooking({ roomId: room.id, startTime: day("20:00"), endTime: day("21:00") });
+    const ongoing = createBooking({ roomId: room.id, startTime: day("21:00"), endTime: day("22:00") });
+    const { active, past } = listBookings(now);
+    const ids = (list: { id: number }[]) => list.map((booking) => booking.id);
+
+    expect(ids(active)).toContain(ongoing.id);
+    expect(ids(past)).toEqual(expect.arrayContaining([ended.id, endsNow.id]));
+    expect(ids(active)).not.toContain(endsNow.id);
+    expect(ids(past).indexOf(endsNow.id)).toBeLessThan(ids(past).indexOf(ended.id));
+  });
+
+  it("orders active bookings newest-created first", () => {
+    const room = newRoom();
+    const earlier = createBooking({ roomId: room.id, startTime: "2030-01-02T09:00", endTime: "2030-01-02T10:00" });
+    const later = createBooking({ roomId: room.id, startTime: "2030-01-01T09:00", endTime: "2030-01-01T10:00" });
+    const ids = listBookings(now).active.map((booking) => booking.id);
+
+    expect(ids.indexOf(later.id)).toBeLessThan(ids.indexOf(earlier.id));
+  });
+
+  it("cancels an active booking but keeps an ended one", () => {
+    const room = newRoom();
+    const ended = createBooking({ roomId: room.id, startTime: day("18:00"), endTime: day("19:00") });
+    const upcoming = createBooking({ roomId: room.id, startTime: day("22:00"), endTime: day("23:00") });
+
+    expect(cancelBooking(ended.id, now)).toBe("ended");
+    expect(isRoomAvailable(room.id, { startTime: day("18:00"), endTime: day("19:00") })).toBe(false);
+    expect(cancelBooking(upcoming.id, now)).toBe("cancelled");
+    expect(isRoomAvailable(room.id, { startTime: day("22:00"), endTime: day("23:00") })).toBe(true);
+    expect(cancelBooking(999_999, now)).toBe("not-found");
   });
 });

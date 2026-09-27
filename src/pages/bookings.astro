@@ -4,7 +4,7 @@ import StatusPanel from "../components/StatusPanel.astro";
 import Layout from "../layouts/Layout.astro";
 import { BookingError, createBooking, listBookings } from "../lib/bookings";
 import { capacityLabel, fullTimeRange, longDate, timeRange } from "../lib/format";
-import { parseSlot, pastError, searchParamsFrom } from "../lib/search";
+import { canberraStamp, parseSlot, pastError, searchParamsFrom } from "../lib/search";
 
 // Single-user prototype: there's no sign-in, so My Bookings lists every booking.
 type Failure = { status: 400 | 404 | 409; title: string; message: string; action: string };
@@ -58,8 +58,8 @@ if (Astro.request.method === "POST") {
 }
 
 const params = Astro.url.searchParams;
-const bookings = failure ? [] : listBookings();
-const booked = bookings.find((booking) => String(booking.id) === params.get("booked"));
+const { active, past } = failure ? { active: [], past: [] } : listBookings(canberraStamp());
+const booked = active.find((booking) => String(booking.id) === params.get("booked"));
 const cancelled = params.get("cancelled") === "1";
 ---
 
@@ -76,7 +76,7 @@ const cancelled = params.get("cancelled") === "1";
   ) : (
     <>
       <section class="page-header" aria-labelledby="page-heading">
-        <p class="eyebrow">Your rooms</p>
+        <p class="eyebrow">Your spaces</p>
         <h1 id="page-heading">My bookings</h1>
         {booked && (
           <p class="notice notice-success" role="status">
@@ -90,42 +90,66 @@ const cancelled = params.get("cancelled") === "1";
         {cancelled && (
           <p class="notice notice-success" role="status">
             <strong>Booking cancelled</strong>
-            <span>The room is free again for anyone to book.</span>
+            <span>The space is free again for anyone to book.</span>
           </p>
         )}
       </section>
 
-      {bookings.length > 0 ? (
-        <ul class="room-grid booking-grid">
-          {bookings.map((booking) => {
-            const date = longDate(booking.startTime.slice(0, 10));
-            return (
+      <section class="booking-section" aria-labelledby="active-heading">
+        <h2 id="active-heading">Active bookings</h2>
+        {active.length > 0 ? (
+          <ul class="room-grid">
+            {active.map((booking) => {
+              const date = longDate(booking.startTime.slice(0, 10));
+              return (
+                <li class="room-card">
+                  <h3 class="card-title">{booking.room.name}</h3>
+                  <p class="room-place">
+                    {booking.room.level && `${booking.room.level} · `}{booking.room.library}
+                  </p>
+                  <Facilities room={booking.room} />
+                  <p class="room-facts">
+                    <time datetime={booking.startTime}>{date}</time>
+                    <span>{fullTimeRange(booking.startTime.slice(11), booking.endTime.slice(11))}</span>
+                    <span>{capacityLabel(booking.room)}</span>
+                  </p>
+                  <form method="post" action="/bookings/cancel">
+                    <input type="hidden" name="bookingId" value={booking.id} />
+                    <button class="cancel-button" aria-label={`Cancel booking for ${booking.room.name} on ${date}`}>
+                      Cancel booking
+                    </button>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div class="empty">
+            <p class="empty-title">{past.length > 0 ? "No upcoming bookings." : "No bookings yet."}</p>
+            <p>Tell us when you need a space and we'll show you what's free.</p>
+            <a class="button-primary" href="/">Find a space</a>
+          </div>
+        )}
+      </section>
+
+      {past.length > 0 && (
+        <section class="booking-section past-bookings" aria-labelledby="past-heading">
+          <h2 id="past-heading">Past bookings</h2>
+          <ul class="room-grid">
+            {past.map((booking) => (
               <li class="room-card">
-                <h2 class="card-title">{booking.room.name}</h2>
+                <p class="completed-label">Completed</p>
+                <h3 class="card-title">{booking.room.name}</h3>
                 <p class="room-place">
                   {booking.room.level && `${booking.room.level} · `}{booking.room.library}
                 </p>
-                <Facilities room={booking.room} />
                 <p class="room-facts">
-                  <time datetime={booking.startTime}>{date}</time>
+                  <time datetime={booking.startTime}>{longDate(booking.startTime.slice(0, 10))}</time>
                   <span>{fullTimeRange(booking.startTime.slice(11), booking.endTime.slice(11))}</span>
-                  <span>{capacityLabel(booking.room)}</span>
                 </p>
-                <form method="post" action="/bookings/cancel">
-                  <input type="hidden" name="bookingId" value={booking.id} />
-                  <button class="cancel-button" aria-label={`Cancel booking for ${booking.room.name} on ${date}`}>
-                    Cancel booking
-                  </button>
-                </form>
               </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <section class="empty" aria-labelledby="empty-heading">
-          <h2 id="empty-heading">No bookings yet.</h2>
-          <p>Tell us when you need a space and we'll show you what's free.</p>
-          <a class="button-primary" href="/">Find a space</a>
+            ))}
+          </ul>
         </section>
       )}
     </>

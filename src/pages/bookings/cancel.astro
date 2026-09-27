@@ -2,24 +2,34 @@
 import StatusPanel from "../../components/StatusPanel.astro";
 import Layout from "../../layouts/Layout.astro";
 import { cancelBooking } from "../../lib/bookings";
+import { canberraStamp } from "../../lib/search";
 
 if (Astro.request.method !== "POST") return Astro.redirect("/bookings", 303);
 
 const form = await Astro.request.formData();
 const bookingId = Number(form.get("bookingId"));
-if (Number.isInteger(bookingId) && bookingId > 0 && cancelBooking(bookingId)) {
-  return Astro.redirect("/bookings?cancelled=1", 303);
-}
-Astro.response.status = 404;
+const outcome = Number.isInteger(bookingId) && bookingId > 0 ? cancelBooking(bookingId, canberraStamp()) : "not-found";
+if (outcome === "cancelled") return Astro.redirect("/bookings?cancelled=1", 303);
+
+// A booking that has ended exists but can't change any more: 409, and it stays as history.
+Astro.response.status = outcome === "ended" ? 409 : 404;
 ---
 
-<Layout title="Booking not found — ANU Library" current="bookings">
-  <StatusPanel
-    title="Booking not found"
-    message="It may already have been cancelled."
-    actions={[
-      { href: "/bookings", label: "My bookings" },
-      { href: "/", label: "Find a space" },
-    ]}
-  />
+<Layout title={outcome === "ended" ? "Booking already ended — ANU Library" : "Booking not found — ANU Library"} current="bookings">
+  {outcome === "ended" ? (
+    <StatusPanel
+      title="Booking already ended"
+      message="This booking has already ended and can no longer be cancelled."
+      actions={[{ href: "/bookings", label: "My bookings" }]}
+    />
+  ) : (
+    <StatusPanel
+      title="Booking not found"
+      message="It may already have been cancelled."
+      actions={[
+        { href: "/bookings", label: "My bookings" },
+        { href: "/", label: "Find a space" },
+      ]}
+    />
+  )}
 </Layout>

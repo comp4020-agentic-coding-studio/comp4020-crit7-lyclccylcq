@@ -202,7 +202,7 @@ describe("feedback states", () => {
     expect(status).toContain("Booking confirmed");
     expect(status).toContain("Study Room 3.33");
     expect(status).toContain("6:00–7:00 PM");
-    expect(page.querySelector("main li h2")).toBeTruthy();
+    expect(page.querySelector("main li h3")).toBeTruthy();
   });
 
   it("says Booking cancelled in the same style after cancelling", async () => {
