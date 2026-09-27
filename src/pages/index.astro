@@ -1,5 +1,6 @@
 ---
 import { findAvailableRooms } from "../lib/bookings";
+import { durationLabel, floorOf, shortDate, timeRange } from "../lib/format";
 import { DURATIONS, parseSearch } from "../lib/search";
 import "../styles.css";
 
@@ -9,6 +10,7 @@ const query = parsed && "query" in parsed ? parsed.query : null;
 const error = parsed && "error" in parsed ? parsed.error : null;
 const results = query ? findAvailableRooms(query) : [];
 const selectedDuration = params.get("duration") ?? "60";
+const when = query ? timeRange(query.start, query.endTime.slice(11)) : "";
 ---
 
 <!doctype html>
@@ -19,60 +21,386 @@ const selectedDuration = params.get("duration") ?? "60";
     <title>Find a study room — ANU Library</title>
   </head>
   <body>
-    <nav aria-label="site">
-      <a href="/">Find a room</a>
-      <a href="/bookings">My bookings</a>
-      <a href="/readme/">About</a>
-    </nav>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/">ANU Library <span>Study rooms</span></a>
+        <nav aria-label="site">
+          <a href="/" aria-current="page">Find a room</a>
+          <a href="/bookings">My bookings</a>
+          <a href="/readme/">About</a>
+        </nav>
+      </div>
+    </header>
+
     <main>
-      <h1>Find a study room</h1>
-      <form method="get" action="/">
-        <label for="date">Date</label>
-        <input id="date" name="date" type="date" required value={params.get("date") ?? ""} />
+      <section class="intro" aria-labelledby="page-heading">
+        <p class="eyebrow">Chifley Library</p>
+        <h1 id="page-heading">When do you need a room?</h1>
+        <p class="lede">Tell us when and how many. You'll only see rooms you can actually book.</p>
 
-        <label for="start">Start time</label>
-        <input id="start" name="start" type="time" step="1800" required value={params.get("start") ?? ""} />
-
-        <label for="duration">Duration</label>
-        <select id="duration" name="duration">
-          {DURATIONS.map((minutes) => (
-            <option value={minutes} selected={String(minutes) === selectedDuration}>{minutes} minutes</option>
-          ))}
-        </select>
-
-        <label for="people">People</label>
-        <input id="people" name="people" type="number" min="1" required value={params.get("people") ?? "1"} />
-
-        <button>Find available rooms</button>
-      </form>
-
-      {error && <p role="alert">{error}</p>}
-
-      {query && (
-        <section aria-labelledby="results-heading">
-          <h2 id="results-heading">
-            Free on {query.date}, {query.start}–{query.endTime.slice(11)}, for {query.people}
-          </h2>
-          {results.length > 0 ? (
-            <ul>
-              {results.map((room) => (
-                <li>
-                  {room.name} — {room.library}, seats {room.capacity}
-                  <form method="post" action="/bookings">
-                    <input type="hidden" name="roomId" value={room.id} />
-                    <input type="hidden" name="date" value={query.date} />
-                    <input type="hidden" name="start" value={query.start} />
-                    <input type="hidden" name="duration" value={query.duration} />
-                    <button aria-label={`Book ${room.name}`}>Book</button>
-                  </form>
-                </li>
+        <form class="search" method="get" action="/">
+          <div class="field">
+            <label for="date">Date</label>
+            <input id="date" name="date" type="date" required value={params.get("date") ?? ""} />
+          </div>
+          <div class="field">
+            <label for="start">Start time</label>
+            <input id="start" name="start" type="time" step="1800" required value={params.get("start") ?? ""} />
+          </div>
+          <div class="field">
+            <label for="duration">Duration</label>
+            <select id="duration" name="duration">
+              {DURATIONS.map((minutes) => (
+                <option value={minutes} selected={String(minutes) === selectedDuration}>
+                  {durationLabel(minutes)}
+                </option>
               ))}
+            </select>
+          </div>
+          <div class="field">
+            <label for="people">People</label>
+            <input id="people" name="people" type="number" min="1" required value={params.get("people") ?? "1"} />
+          </div>
+          <button class="search-button">Find rooms</button>
+        </form>
+
+        {error && <p class="notice notice-error" role="alert">{error}</p>}
+      </section>
+
+      {query ? (
+        <section class="results" aria-labelledby="results-heading">
+          <header class="results-header">
+            <h2 id="results-heading">
+              {results.length === 0
+                ? "No rooms available"
+                : `${results.length} ${results.length === 1 ? "room" : "rooms"} available`}
+            </h2>
+            <p class="results-context">
+              For {query.people} {query.people === 1 ? "person" : "people"} · {shortDate(query.date)} · {when}
+            </p>
+          </header>
+
+          {results.length > 0 ? (
+            <ul class="room-grid">
+              {results.map((room) => {
+                const floor = floorOf(room.name);
+                return (
+                  <li class="room-card">
+                    <h3>{room.name}</h3>
+                    <p class="room-place">
+                      {room.library}{floor && ` · Floor ${floor}`}
+                    </p>
+                    <dl class="room-facts">
+                      <div>
+                        <dt>Seats</dt>
+                        <dd>{room.capacity}</dd>
+                      </div>
+                      <div>
+                        <dt>Time</dt>
+                        <dd>{when}</dd>
+                      </div>
+                    </dl>
+                    <form method="post" action="/bookings">
+                      <input type="hidden" name="roomId" value={room.id} />
+                      <input type="hidden" name="date" value={query.date} />
+                      <input type="hidden" name="start" value={query.start} />
+                      <input type="hidden" name="duration" value={query.duration} />
+                      <button class="book-button" aria-label={`Book ${room.name}`}>Book</button>
+                    </form>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
-            <p>No rooms are free for that time. Try another start time or a shorter booking.</p>
+            <p class="notice">
+              Nothing is free for that time and group size. Try a different start time, a shorter booking or a
+              smaller group.
+            </p>
           )}
         </section>
+      ) : (
+        !error && (
+          <section class="empty" aria-label="How search works">
+            <p>
+              <strong>No timetable to scan.</strong> Pick a date and time above, and we'll list only the study rooms
+              that are free for your whole booking and big enough for your group.
+            </p>
+          </section>
+        )
       )}
     </main>
   </body>
 </html>
+
+<style>
+  body {
+    --ink: #16181d;
+    --ink-soft: #4a4f59;
+    --line: #dcdfe4;
+    --surface: #ffffff;
+    --canvas: #f5f5f2;
+    --gold: #be830e;
+    --gold-soft: #f6ecd7;
+    --danger: #a3261b;
+    --radius: 12px;
+
+    padding: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  .topbar {
+    background: var(--surface);
+    border-bottom: 3px solid var(--gold);
+  }
+  .topbar-inner {
+    max-width: 68rem;
+    margin: 0 auto;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .brand {
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: none;
+    letter-spacing: -0.01em;
+  }
+  .brand span {
+    color: var(--ink-soft);
+    font-weight: 400;
+    margin-left: 0.35rem;
+  }
+  nav {
+    display: flex;
+    gap: 1.25rem;
+  }
+  nav a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 0.95rem;
+    padding-block: 0.25rem;
+    border-bottom: 2px solid transparent;
+  }
+  nav a:hover,
+  nav a[aria-current="page"] {
+    color: var(--ink);
+    border-bottom-color: var(--ink);
+  }
+
+  main {
+    max-width: 68rem;
+    padding: 0 1rem 4rem;
+  }
+
+  .intro {
+    padding-top: clamp(2rem, 6vw, 4rem);
+  }
+  .eyebrow {
+    margin: 0 0 0.5rem;
+    color: var(--gold);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2rem, 5vw, 3.25rem);
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+  }
+  .lede {
+    margin: 0.75rem 0 0;
+    max-width: 36rem;
+    color: var(--ink-soft);
+    font-size: 1.125rem;
+  }
+
+  .search {
+    margin: 2rem 0 0;
+    padding: 1.25rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: end;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 1px 2px rgb(22 24 29 / 0.04), 0 8px 24px rgb(22 24 29 / 0.06);
+  }
+  .field {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+  .field label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+  .field input,
+  .field select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    height: 3rem;
+    padding: 0 0.75rem;
+    font: inherit;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .field input:hover,
+  .field select:hover {
+    border-color: #b9bec7;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+  .search-button {
+    height: 3rem;
+    padding: 0 1.75rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--ink);
+    border: 0;
+    border-radius: 8px;
+  }
+  .search-button:hover {
+    background: #2c3038;
+  }
+
+  :is(input, select, button, a):focus-visible {
+    outline: 3px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  @media (min-width: 36rem) {
+    .search {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .search-button {
+      grid-column: 1 / -1;
+    }
+  }
+  @media (min-width: 60rem) {
+    .search {
+      grid-template-columns: 1.3fr 1fr 1fr 0.8fr auto;
+      padding: 1rem;
+    }
+    .search-button {
+      grid-column: auto;
+    }
+  }
+
+  .notice {
+    margin: 1.5rem 0 0;
+    padding: 1rem 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--ink-soft);
+  }
+  .notice-error {
+    color: var(--danger);
+    border-color: #e8b4ae;
+    background: #fdf3f2;
+  }
+
+  .empty {
+    margin-top: 2.5rem;
+    padding: 1.5rem;
+    max-width: 44rem;
+    border-left: 3px solid var(--gold);
+    background: var(--gold-soft);
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .empty p {
+    margin: 0;
+  }
+
+  .results {
+    margin-top: 3rem;
+  }
+  .results-header h2 {
+    margin: 0;
+    font-size: 1.6rem;
+    letter-spacing: -0.015em;
+  }
+  .results-context {
+    margin: 0.25rem 0 0;
+    color: var(--ink-soft);
+  }
+
+  .room-grid {
+    list-style: none;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+    gap: 1rem;
+  }
+  .room-card {
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    transition: border-color 120ms ease;
+  }
+  .room-card:hover {
+    border-color: var(--ink);
+  }
+  .room-card h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
+  }
+  .room-place {
+    margin: 0.2rem 0 0;
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+  }
+  .room-facts {
+    margin: 1.25rem 0;
+    display: flex;
+    gap: 1.5rem;
+  }
+  .room-facts dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .room-facts dd {
+    margin: 0.1rem 0 0;
+    font-weight: 600;
+  }
+  .room-card form {
+    margin: auto 0 0;
+    display: block;
+  }
+  .book-button {
+    width: 100%;
+    height: 2.75rem;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1.5px solid var(--ink);
+    border-radius: 8px;
+  }
+  .book-button:hover {
+    color: #fff;
+    background: var(--ink);
+  }
+</style>
