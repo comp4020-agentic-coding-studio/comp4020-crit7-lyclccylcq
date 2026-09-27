@@ -2,52 +2,26 @@
 
 ## What I built
 
-An availability-first replacement for ANU Library study-space booking: say
-when, how long and how many, and see only the rooms and desks you can book.
-`README.md` has the argument.
+An availability-first alternative to ANU Library study-space booking: enter when, how long and how many people; see only bookable rooms and desks. `README.md` explains the design.
 
 ## How I got here
 
-I chose this system because I use it, and its horizontally scrolling timetable
-is poor at answering "what can I book at this time?". I directed the agent to
-design before building:
+I chose a system I use, but whose interface I find poorly designed. Users visually scan a large, horizontally scrolling grid to find rooms and times. I wanted the system to do that filtering.
+
+I used test-driven development (TDD), directing the agent:
 
 > Do not implement anything yet.
 
-Bookings are half-open intervals, so back-to-back bookings are valid, pinned by
-a red-green cycle
-([`51d4714...dccf6fb`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/51d4714...dccf6fb)).
-I then moved validation into the domain:
+We defined the schema and half-open booking intervals, then made tests fail on the rule before implementing it ([`51d4714...dccf6fb`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/51d4714...dccf6fb)). A missing-module failure needed a stub first: red was useful only for the right reason.
 
-> Please make createBooking responsible for validating a booking rather than
-> relying on the caller to remember to call isRoomAvailable first.
+I then made `createBooking` validate bookings itself, rather than trusting callers to check availability ([`356ec47...b5994ff`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/356ec47...b5994ff)). Search was tested against an existing booking before the booking UI existed ([`8b610e5...5a43f3b`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/8b610e5...5a43f3b)), followed by Search → Book → My Bookings → reload ([`d7791f0...5b7e18f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/d7791f0...5b7e18f)).
 
-([`356ec47...b5994ff`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/356ec47...b5994ff))
-
-Search was tested against an existing booking before any booking UI existed
-([`8b610e5...5a43f3b`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/8b610e5...5a43f3b)),
-then Search → Book → My Bookings → reload
-([`d7791f0...5b7e18f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/compare/d7791f0...5b7e18f)).
-The redesign leads with one question
-([`42e2c3d`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/42e2c3d));
-booking gained a review step, with `createBooking` still deciding at confirm
-([`c6b3a62`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/c6b3a62)).
-For completed bookings I kept the rule on the server:
+The redesign and review step followed ([`42e2c3d`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/42e2c3d), [`c6b3a62`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/c6b3a62)). For completed bookings, I insisted:
 
 > Do not rely only on hiding the Cancel button.
 
-([`e5d8825`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/e5d8825))
+The server enforces that rule ([`e5d8825`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/e5d8825)).
 
-Room data comes from LibCal: Chifley first
-([`d0947d9`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/d0947d9)),
-then Hancock, Law and desks from my screenshots, with unverified facilities
-stored as unknown rather than guessed
-([`b1f1bcf`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/b1f1bcf),
-[`ecccf86`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/ecccf86)).
-Authentication stayed out of scope.
+LibCal and my screenshots grounded the room and desk data; unverified facilities stayed unknown, not guessed ([`d0947d9`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/d0947d9), [`b1f1bcf`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/b1f1bcf), [`ecccf86`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/ecccf86)). Authentication remained out of scope.
 
-Correcting meant reading failures rather than patching them. One red run
-failed on a missing module, so we stubbed it until it failed on the rule. When
-searches crashed locally after a schema change, I had the agent reproduce it
-before fixing: the dev server had kept a Drizzle object built against the old
-schema. The fix was a restart and a `CLAUDE.md` rule, not a code change.
+Database failures taught me to investigate deeper logic, not assume bad data. After a schema change, searches crashed because the development server retained an outdated Drizzle object; restarting it and documenting the rule in `CLAUDE.md` fixed this. Later, intermittent "database is locked" failures came from transaction contention between connections. Taking the write lock at the start fixed that failure ([`7560b1b`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-lyclccylcq/commit/7560b1b)). Both cases required understanding lifecycle or transaction behaviour before changing anything.
