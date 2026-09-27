@@ -46,24 +46,27 @@ export function isRoomAvailable(roomId: number, request: Interval): boolean {
   return conflict === undefined;
 }
 
-export type BookingDetails = Interval & { id: number; roomName: string; library: string };
+export type BookingWithRoom = Interval & { id: number; room: Room };
 
-export function listBookings(): BookingDetails[] {
+export function listBookings(): BookingWithRoom[] {
   return db
-    .select({
-      id: bookings.id,
-      roomName: rooms.name,
-      library: rooms.library,
-      startTime: bookings.startTime,
-      endTime: bookings.endTime,
-    })
+    .select()
     .from(bookings)
     .innerJoin(rooms, eq(bookings.roomId, rooms.id))
     .orderBy(asc(bookings.startTime), asc(rooms.name))
-    .all();
+    .all()
+    .map((row) => ({ id: row.bookings.id, startTime: row.bookings.startTime, endTime: row.bookings.endTime, room: row.rooms }));
 }
 
-// library: a library name to search only that branch, or null for all of them.
+export function getRoom(id: number): Room | undefined {
+  return db.select().from(rooms).where(eq(rooms.id, id)).get();
+}
+
+// Cancelling deletes the row; returns false when there was no such booking.
+export function cancelBooking(id: number): boolean {
+  return db.delete(bookings).where(eq(bookings.id, id)).run().changes > 0;
+}
+
 export function findAvailableRooms(request: Interval & { people: number; library: string | null }): Room[] {
   return db
     .select()

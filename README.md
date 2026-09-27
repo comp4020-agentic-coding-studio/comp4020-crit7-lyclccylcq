@@ -2,7 +2,11 @@
 
 An availability-first redesign of the ANU Library study-room booking
 experience. You say when you need a room, for how long and for how many
-people, and it shows only the rooms you can actually book.
+people, and it shows only the rooms you can actually book, rather than a
+timetable to scan.
+
+This is a single-user Crit 7 prototype. It doesn't use ANU sign-in or connect
+to LibCal: bookings made here live only in this app.
 
 ## The problem
 
@@ -18,8 +22,11 @@ interface is organised around rooms.
    many people are coming and, optionally, a library.
 2. See only the rooms that seat that many people and have no booking
    overlapping that time, best fit first.
-3. Press **Book room** on one.
-4. It appears in **My bookings**, and it's still there after a reload.
+3. Press **Book room** on one, check the details, and **Confirm booking**.
+   Nothing is booked until you confirm, and the server checks again that the
+   room is still free.
+4. It appears in **My bookings**, and it's still there after a reload. You can
+   cancel it there, which frees the room straight away.
 
 ## The data
 
@@ -55,8 +62,9 @@ judgement call, and is still being improved.
   and My bookings lists every booking. Leaving it out keeps the focus on the
   booking interaction.
 - **Menzies and other branches**, maps, and a live connection to LibCal.
-- Cancelling or editing bookings, recurring bookings, check-in, reminders,
-  admin screens, quotas and opening hours.
+- Editing bookings (cancel and book again), recurring bookings, check-in,
+  reminders, admin screens, quotas and opening hours. Cancelling deletes the
+  booking rather than keeping a history.
 
 ## Running it
 

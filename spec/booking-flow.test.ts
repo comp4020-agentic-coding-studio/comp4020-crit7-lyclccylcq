@@ -40,20 +40,24 @@ beforeAll(async () => {
 describe("booking flow", () => {
   let bookingForm: URLSearchParams;
 
-  it("gives each search result a Book action", async () => {
-    const window = await page(`/?${new URLSearchParams({ date, start: "10:00", duration: "60", people: "2" })}`);
-    const button = [...window.document.querySelectorAll("button")].find((candidate) => {
-      const name = candidate.getAttribute("aria-label") ?? candidate.textContent ?? "";
-      return name.includes("Book") && name.includes(room);
-    });
-    const form = button?.closest("form");
+  it("gives each search result a Book action that leads to a Confirm booking form", async () => {
+    const fields = (window: JSDOM["window"], form: Element) =>
+      new URLSearchParams([...new window.FormData(form as HTMLFormElement).entries()] as [string, string][]);
+    const named = (window: JSDOM["window"], ...parts: string[]) =>
+      [...window.document.querySelectorAll("button")].find((candidate) => {
+        const name = candidate.getAttribute("aria-label") ?? candidate.textContent ?? "";
+        return parts.every((part) => name.includes(part));
+      });
 
-    expect(form, `a Book button for ${room} inside a form`).toBeTruthy();
-    expect(form?.getAttribute("method")?.toLowerCase()).toBe("post");
-    expect(form?.getAttribute("action")).toBe("/bookings");
-    bookingForm = new URLSearchParams(
-      [...new window.FormData(form as HTMLFormElement).entries()] as [string, string][],
-    );
+    const results = await page(`/?${new URLSearchParams({ date, start: "10:00", duration: "60", people: "2" })}`);
+    const bookForm = named(results, "Book", room)?.closest("form");
+    expect(bookForm, `a Book button for ${room} inside a form`).toBeTruthy();
+
+    const review = await page(`${bookForm?.getAttribute("action")}?${fields(results, bookForm as Element)}`);
+    const confirmForm = named(review, "Confirm booking")?.closest("form");
+    expect(confirmForm?.getAttribute("method")?.toLowerCase()).toBe("post");
+    expect(confirmForm?.getAttribute("action")).toBe("/bookings");
+    bookingForm = fields(review, confirmForm as Element);
   });
 
   it("creates the booking in SQLite when that form is submitted", async () => {
@@ -67,7 +71,7 @@ describe("booking flow", () => {
   it("shows the booking in My Bookings: room, date, start and end", async () => {
     const text = (await page("/bookings")).document.body.textContent ?? "";
 
-    for (const detail of [room, date, "10:00", "11:00"]) expect(text).toContain(detail);
+    for (const detail of [room, "5 June", "10:00", "11:00"]) expect(text).toContain(detail);
   });
 
   it("still shows the booking after a reload", async () => {

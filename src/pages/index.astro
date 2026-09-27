@@ -1,8 +1,9 @@
 ---
+import Facilities from "../components/Facilities.astro";
+import Layout from "../layouts/Layout.astro";
 import { findAvailableRooms } from "../lib/bookings";
 import { durationLabel, fullTimeRange, peopleLabel, shortDate, timeRange } from "../lib/format";
 import { canberraNow, DURATIONS, LIBRARIES, PARTY_SIZES, parseSearch, searchDefaults } from "../lib/search";
-import "../styles.css";
 
 const params = Astro.url.searchParams;
 const parsed = parseSearch(params);
@@ -27,470 +28,108 @@ const scope = !query
       : results.length > 0
         ? ` at ${results[0].library}`
         : "";
-
-// Only verified facilities (true) are shown; null means not verified.
-const facilitiesOf = (room: (typeof results)[number]) =>
-  [
-    room.hasPower && { key: "power", label: "Power" },
-    room.isAccessible && { key: "accessible", label: "Accessible" },
-    room.hasDisplay && { key: "display", label: "Display" },
-    room.hasWhiteboard && { key: "whiteboard", label: "Whiteboard" },
-  ].filter((facility): facility is { key: string; label: string } => Boolean(facility));
 ---
 
-<!doctype html>
-<html lang="en-AU">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Find a study room — ANU Library</title>
-  </head>
-  <body>
-    <header class="topbar">
-      <div class="topbar-inner">
-        <a class="brand" href="/">ANU Library <span>Study rooms</span></a>
-        <nav aria-label="site">
-          <a href="/" aria-current="page">Find a room</a>
-          <a href="/bookings">My bookings</a>
-          <a href="/readme/">About</a>
-        </nav>
+<Layout title="Find a study room — ANU Library" current="search">
+  <section class="intro" aria-labelledby="page-heading">
+    <p class="eyebrow">Chifley · Hancock · Law</p>
+    <h1 id="page-heading">When do you need a room?</h1>
+    <p class="lede">Tell us when and how many. You'll only see rooms you can actually book.</p>
+
+    <form class="search" method="get" action="/">
+      <div class="field">
+        <label for="date">Date</label>
+        <input id="date" name="date" type="date" required min={today} value={params.get("date") ?? defaults.date} />
       </div>
-    </header>
+      <div class="field">
+        <label for="start">Start time</label>
+        <input id="start" name="start" type="time" step="1800" required value={params.get("start") ?? defaults.start} />
+      </div>
+      <div class="field">
+        <label for="duration">Duration</label>
+        <select id="duration" name="duration">
+          {DURATIONS.map((minutes) => (
+            <option value={minutes} selected={String(minutes) === selectedDuration}>
+              {durationLabel(minutes)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div class="field">
+        <label for="people">People</label>
+        <select id="people" name="people">
+          {PARTY_SIZES.map((count) => (
+            <option value={count} selected={String(count) === selectedPeople}>{peopleLabel(count)}</option>
+          ))}
+        </select>
+      </div>
+      <div class="field field-library">
+        <label for="library">Library</label>
+        <select id="library" name="library">
+          <option value="any" selected={selectedLibrary === "any"}>Any library</option>
+          {LIBRARIES.map((library) => (
+            <option value={library.value} selected={library.value === selectedLibrary}>{library.name}</option>
+          ))}
+        </select>
+      </div>
+      <button class="search-button">Find rooms</button>
+    </form>
 
-    <main>
-      <section class="intro" aria-labelledby="page-heading">
-        <p class="eyebrow">Chifley · Hancock · Law</p>
-        <h1 id="page-heading">When do you need a room?</h1>
-        <p class="lede">Tell us when and how many. You'll only see rooms you can actually book.</p>
+    {error && <p class="notice notice-error" role="alert">{error}</p>}
+  </section>
 
-        <form class="search" method="get" action="/">
-          <div class="field">
-            <label for="date">Date</label>
-            <input id="date" name="date" type="date" required min={today} value={params.get("date") ?? defaults.date} />
-          </div>
-          <div class="field">
-            <label for="start">Start time</label>
-            <input id="start" name="start" type="time" step="1800" required value={params.get("start") ?? defaults.start} />
-          </div>
-          <div class="field">
-            <label for="duration">Duration</label>
-            <select id="duration" name="duration">
-              {DURATIONS.map((minutes) => (
-                <option value={minutes} selected={String(minutes) === selectedDuration}>
-                  {durationLabel(minutes)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div class="field">
-            <label for="people">People</label>
-            <select id="people" name="people">
-              {PARTY_SIZES.map((count) => (
-                <option value={count} selected={String(count) === selectedPeople}>{peopleLabel(count)}</option>
-              ))}
-            </select>
-          </div>
-          <div class="field field-library">
-            <label for="library">Library</label>
-            <select id="library" name="library">
-              <option value="any" selected={selectedLibrary === "any"}>Any library</option>
-              {LIBRARIES.map((library) => (
-                <option value={library.value} selected={library.value === selectedLibrary}>{library.name}</option>
-              ))}
-            </select>
-          </div>
-          <button class="search-button">Find rooms</button>
-        </form>
+  {query ? (
+    <section class="results" aria-labelledby="results-heading">
+      <header class="results-header">
+        <h2 id="results-heading">
+          {results.length === 0 ? `No rooms available${scope}` : `${roomsLabel}${scope}`}
+        </h2>
+        <p class="results-context">
+          For {peopleLabel(query.people)} · {shortDate(query.date)} · {when}
+        </p>
+      </header>
 
-        {error && <p class="notice notice-error" role="alert">{error}</p>}
-      </section>
-
-      {query ? (
-        <section class="results" aria-labelledby="results-heading">
-          <header class="results-header">
-            <h2 id="results-heading">
-              {results.length === 0 ? `No rooms available${scope}` : `${roomsLabel}${scope}`}
-            </h2>
-            <p class="results-context">
-              For {peopleLabel(query.people)} · {shortDate(query.date)} · {when}
-            </p>
-          </header>
-
-          {results.length > 0 ? (
-            <ul class="room-grid">
-              {results.map((room) => {
-                const facilities = facilitiesOf(room);
-                return (
-                  <li class="room-card">
-                    <h3>{room.name}</h3>
-                    <p class="room-place">
-                      {room.level && `${room.level} · `}{room.library}
-                    </p>
-                    {facilities.length > 0 && (
-                      <ul class="facilities" aria-label="Facilities">
-                        {facilities.map((facility) => (
-                          <li>
-                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                              {facility.key === "power" && <path d="M9 1.5 3.5 9H7.5L6.5 14.5 12.5 7H8.5Z" />}
-                              {facility.key === "accessible" && (
-                                <>
-                                  <circle cx="8.5" cy="2.5" r="1.25" />
-                                  <path d="M8.5 5v4.25h3l1.5 3.75M8.5 7h3M6.25 7.5a3.75 3.75 0 1 0 4.5 5" />
-                                </>
-                              )}
-                              {facility.key === "display" && <path d="M1.5 2.5h13v8.5h-13ZM5 14h6M8 11v3" />}
-                              {facility.key === "whiteboard" && <path d="M1.5 2.5h13v9h-13ZM4.5 14l1.5-2.5M11.5 14 10 11.5M4.5 8l2.5-2 2 1.5 2.5-2" />}
-                            </svg>
-                            {facility.label}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <p class="room-facts">
-                      <span>Up to {peopleLabel(room.capacity)}</span>
-                      <span>{cardTime}</span>
-                    </p>
-                    <form method="post" action="/bookings">
-                      <input type="hidden" name="roomId" value={room.id} />
-                      <input type="hidden" name="date" value={query.date} />
-                      <input type="hidden" name="start" value={query.start} />
-                      <input type="hidden" name="duration" value={query.duration} />
-                      <button class="book-button" aria-label={`Book ${room.name}`}>
-                        Book room <span aria-hidden="true">→</span>
-                      </button>
-                    </form>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p class="notice">
-              Nothing is free for that time and group size. Try a different start time, a shorter booking, a
-              smaller group or another library.
-            </p>
-          )}
-        </section>
+      {results.length > 0 ? (
+        <ul class="room-grid">
+          {results.map((room) => (
+            <li class="room-card">
+              <h3>{room.name}</h3>
+              <p class="room-place">
+                {room.level && `${room.level} · `}{room.library}
+              </p>
+              <Facilities room={room} />
+              <p class="room-facts">
+                <span>Up to {peopleLabel(room.capacity)}</span>
+                <span>{cardTime}</span>
+              </p>
+              <form method="get" action="/bookings/confirm">
+                <input type="hidden" name="roomId" value={room.id} />
+                <input type="hidden" name="date" value={query.date} />
+                <input type="hidden" name="start" value={query.start} />
+                <input type="hidden" name="duration" value={query.duration} />
+                <input type="hidden" name="people" value={query.people} />
+                <input type="hidden" name="library" value={selectedLibrary} />
+                <button class="book-button" aria-label={`Book ${room.name}`}>
+                  Book room <span aria-hidden="true">→</span>
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
       ) : (
-        !error && (
-          <section class="empty" aria-labelledby="empty-heading">
-            <h2 id="empty-heading">Find the room that fits your plans.</h2>
-            <p>Choose when you need a space and we'll only show rooms that are actually available.</p>
-          </section>
-        )
+        <p class="notice">
+          Nothing is free for that time and group size. Try a different start time, a shorter booking, a
+          smaller group or another library.
+        </p>
       )}
-    </main>
-  </body>
-</html>
+    </section>
+  ) : (
+    !error && (
+      <section class="empty" aria-labelledby="empty-heading">
+        <h2 id="empty-heading">Find the room that fits your plans.</h2>
+        <p>Choose when you need a space and we'll only show rooms that are actually available.</p>
+      </section>
+    )
+  )}
+</Layout>
 
-<style>
-  body {
-    --ink: #16181d;
-    --ink-soft: #4a4f59;
-    --line: #dcdfe4;
-    --surface: #ffffff;
-    --canvas: #f5f5f2;
-    --gold: #be830e;
-    --gold-soft: #f6ecd7;
-    --danger: #a3261b;
-    --radius: 12px;
-
-    padding: 0;
-    background: var(--canvas);
-    color: var(--ink);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  }
-
-  .topbar {
-    background: var(--surface);
-    border-bottom: 3px solid var(--gold);
-  }
-  .topbar-inner {
-    max-width: 68rem;
-    margin: 0 auto;
-    padding: 0.9rem 1rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1.5rem;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .brand {
-    color: var(--ink);
-    font-weight: 700;
-    text-decoration: none;
-    letter-spacing: -0.01em;
-  }
-  .brand span {
-    color: var(--ink-soft);
-    font-weight: 400;
-    margin-left: 0.35rem;
-  }
-  nav {
-    display: flex;
-    gap: 1.25rem;
-  }
-  nav a {
-    color: var(--ink-soft);
-    text-decoration: none;
-    font-size: 0.95rem;
-    padding-block: 0.25rem;
-    border-bottom: 2px solid transparent;
-  }
-  nav a:hover,
-  nav a[aria-current="page"] {
-    color: var(--ink);
-    border-bottom-color: var(--ink);
-  }
-
-  main {
-    max-width: 68rem;
-    padding: 0 1rem 4rem;
-  }
-
-  .intro {
-    padding-top: clamp(2rem, 6vw, 4rem);
-  }
-  .eyebrow {
-    margin: 0 0 0.5rem;
-    color: var(--gold);
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-  h1 {
-    margin: 0;
-    font-size: clamp(2rem, 5vw, 3.25rem);
-    line-height: 1.1;
-    letter-spacing: -0.025em;
-  }
-  .lede {
-    margin: 0.75rem 0 0;
-    max-width: 36rem;
-    color: var(--ink-soft);
-    font-size: 1.125rem;
-  }
-
-  .search {
-    margin: 2rem 0 0;
-    padding: 1.25rem;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    align-items: end;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: 0 1px 2px rgb(22 24 29 / 0.04), 0 8px 24px rgb(22 24 29 / 0.06);
-  }
-  .field {
-    display: grid;
-    gap: 0.35rem;
-    min-width: 0;
-  }
-  .field label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--ink-soft);
-  }
-  .field input,
-  .field select {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    height: 3rem;
-    padding: 0 0.75rem;
-    font: inherit;
-    color: var(--ink);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-  }
-  .field input:hover,
-  .field select:hover {
-    border-color: #b9bec7;
-  }
-
-  button {
-    font: inherit;
-    cursor: pointer;
-  }
-  .search-button {
-    height: 3rem;
-    padding: 0 1.75rem;
-    font-weight: 600;
-    color: #fff;
-    background: var(--ink);
-    border: 0;
-    border-radius: 8px;
-  }
-  .search-button:hover {
-    background: #2c3038;
-  }
-
-  :is(input, select, button, a):focus-visible {
-    outline: 3px solid var(--gold);
-    outline-offset: 2px;
-  }
-
-  @media (min-width: 36rem) {
-    .search {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .search-button,
-    .field-library {
-      grid-column: 1 / -1;
-    }
-  }
-  @media (min-width: 60rem) {
-    .search {
-      grid-template-columns: 1.25fr 1fr 0.9fr 0.95fr 1.2fr auto;
-      padding: 1rem;
-    }
-    .search-button,
-    .field-library {
-      grid-column: auto;
-    }
-  }
-
-  .notice {
-    margin: 1.5rem 0 0;
-    padding: 1rem 1.25rem;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    color: var(--ink-soft);
-  }
-  .notice-error {
-    color: var(--danger);
-    border-color: #e8b4ae;
-    background: #fdf3f2;
-  }
-
-  .empty {
-    margin-top: 2.5rem;
-    padding: 1.5rem;
-    max-width: 44rem;
-    border-left: 3px solid var(--gold);
-    background: var(--gold-soft);
-    border-radius: 0 var(--radius) var(--radius) 0;
-  }
-  .empty h2 {
-    margin: 0;
-    font-size: 1.2rem;
-    letter-spacing: -0.01em;
-  }
-  .empty p {
-    margin: 0.35rem 0 0;
-    color: var(--ink-soft);
-  }
-
-  .results {
-    margin-top: 3rem;
-  }
-  .results-header h2 {
-    margin: 0;
-    font-size: clamp(1.75rem, 3.5vw, 2.25rem);
-    line-height: 1.15;
-    letter-spacing: -0.02em;
-  }
-  .results-context {
-    margin: 0.25rem 0 0;
-    color: var(--ink-soft);
-  }
-
-  .room-grid {
-    list-style: none;
-    margin: 1.5rem 0 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
-    gap: 1rem;
-  }
-  .room-card {
-    display: flex;
-    flex-direction: column;
-    padding: 1.25rem;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    transition: border-color 120ms ease;
-  }
-  .room-card:hover {
-    border-color: var(--ink);
-  }
-  .room-card h3 {
-    margin: 0;
-    font-size: 1.15rem;
-    letter-spacing: -0.01em;
-  }
-  .room-place {
-    margin: 0.2rem 0 0;
-    color: var(--ink-soft);
-    font-size: 0.95rem;
-  }
-  .facilities {
-    list-style: none;
-    margin: 0.75rem 0 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-  .facilities li {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.15rem 0.5rem 0.15rem 0.4rem;
-    font-size: 0.8rem;
-    color: var(--ink-soft);
-    background: var(--canvas);
-    border-radius: 999px;
-  }
-  .facilities svg {
-    width: 0.95rem;
-    height: 0.95rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .room-facts {
-    margin: 1.25rem 0;
-    display: grid;
-    gap: 0.15rem;
-  }
-  .room-facts span:first-child {
-    font-weight: 600;
-  }
-  .room-facts span:last-child {
-    color: var(--ink-soft);
-  }
-  .room-card form {
-    margin: auto 0 0;
-    display: block;
-  }
-  .book-button {
-    width: 100%;
-    height: 2.75rem;
-    font-weight: 600;
-    color: var(--ink);
-    background: var(--surface);
-    border: 1.5px solid var(--ink);
-    border-radius: 8px;
-  }
-  .book-button span {
-    display: inline-block;
-    transition: transform 120ms ease;
-  }
-  .book-button:hover,
-  .book-button:focus-visible {
-    color: #fff;
-    background: var(--ink);
-  }
-  .book-button:hover span,
-  .book-button:focus-visible span {
-    transform: translateX(3px);
-  }
-</style>

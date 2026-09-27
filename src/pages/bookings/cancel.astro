@@ -1,0 +1,23 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { cancelBooking } from "../../lib/bookings";
+
+if (Astro.request.method !== "POST") return Astro.redirect("/bookings", 303);
+
+const form = await Astro.request.formData();
+const bookingId = Number(form.get("bookingId"));
+if (Number.isInteger(bookingId) && bookingId > 0 && cancelBooking(bookingId)) {
+  return Astro.redirect("/bookings?cancelled=1", 303);
+}
+Astro.response.status = 404;
+---
+
+<Layout title="Booking not found — ANU Library" current="bookings">
+  <section class="page-header" aria-labelledby="page-heading">
+    <h1 id="page-heading">That booking wasn't found</h1>
+    <p class="lede">It may already have been cancelled.</p>
+    <div class="actions">
+      <a class="button-primary" href="/bookings">My bookings</a>
+    </div>
+  </section>
+</Layout>

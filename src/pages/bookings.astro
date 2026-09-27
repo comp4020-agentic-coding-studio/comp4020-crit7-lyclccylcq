@@ -1,15 +1,26 @@
 ---
+import Facilities from "../components/Facilities.astro";
+import Layout from "../layouts/Layout.astro";
 import { BookingError, createBooking, listBookings } from "../lib/bookings";
+import { fullTimeRange, longDate, peopleLabel } from "../lib/format";
 import { parseSlot } from "../lib/search";
-import "../styles.css";
 
 // Single-user prototype: there's no sign-in, so My Bookings lists every booking.
 let error: string | null = null;
+let conflict = false;
+let backToSearch = "/";
 
 if (Astro.request.method === "POST") {
   const form = await Astro.request.formData();
   const roomId = Number(form.get("roomId"));
   const parsed = parseSlot(form);
+
+  const search = new URLSearchParams();
+  for (const name of ["date", "start", "duration", "people", "library"]) {
+    const value = form.get(name);
+    if (typeof value === "string" && value) search.set(name, value);
+  }
+  backToSearch = `/?${search}`;
 
   if (!Number.isInteger(roomId) || roomId < 1) {
     error = "That booking request didn't name a room.";
@@ -18,60 +29,78 @@ if (Astro.request.method === "POST") {
     error = parsed.error;
     Astro.response.status = 400;
   } else {
+    // createBooking re-checks availability at submission time: it has the final say.
     try {
       createBooking({ roomId, startTime: parsed.slot.startTime, endTime: parsed.slot.endTime });
       return Astro.redirect("/bookings", 303);
     } catch (caught) {
       if (!(caught instanceof BookingError)) throw caught;
-      error =
-        caught.reason === "conflict"
-          ? "That room is no longer free for that time."
-          : caught.reason === "no-such-room"
-            ? "That room doesn't exist."
-            : "That booking's times aren't valid.";
-      Astro.response.status = caught.reason === "conflict" ? 409 : 400;
+      conflict = caught.reason === "conflict";
+      error = conflict
+        ? "Someone else booked it for that time after you started. Nothing was booked."
+        : caught.reason === "no-such-room"
+          ? "That room doesn't exist."
+          : "That booking's times aren't valid.";
+      Astro.response.status = conflict ? 409 : 400;
     }
   }
 }
 
-const bookings = listBookings();
+const cancelled = Astro.url.searchParams.get("cancelled") === "1";
+const bookings = error ? [] : listBookings();
 ---
 
-<!doctype html>
-<html lang="en-AU">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>My bookings — ANU Library</title>
-  </head>
-  <body>
-    <nav aria-label="site">
-      <a href="/">Find a room</a>
-      <a href="/bookings">My bookings</a>
-      <a href="/readme/">About</a>
-    </nav>
-    <main>
-      <h1>My bookings</h1>
-
-      {error && (
-        <p role="alert">
-          {error} <a href="/">Search again</a>
-        </p>
-      )}
+<Layout title={conflict ? "Room no longer available — ANU Library" : "My bookings — ANU Library"} current="bookings">
+  {error ? (
+    <section class="page-header" aria-labelledby="page-heading">
+      <h1 id="page-heading">{conflict ? "This room is no longer available" : "That booking couldn't be made"}</h1>
+      <p class="notice notice-error" role="alert">{error}</p>
+      <div class="actions">
+        <a class="button-primary" href={backToSearch}>Back to search</a>
+        <a class="button-secondary" href="/bookings">My bookings</a>
+      </div>
+    </section>
+  ) : (
+    <>
+      <section class="page-header" aria-labelledby="page-heading">
+        <p class="eyebrow">Your rooms</p>
+        <h1 id="page-heading">My bookings</h1>
+        {cancelled && <p class="notice notice-success" role="status">Booking cancelled.</p>}
+      </section>
 
       {bookings.length > 0 ? (
-        <ul>
-          {bookings.map((booking) => (
-            <li>
-              {booking.roomName}, {booking.library}:
-              <time datetime={booking.startTime}>{booking.startTime.slice(0, 10)}</time>,
-              {booking.startTime.slice(11)}–{booking.endTime.slice(11)}
-            </li>
-          ))}
+        <ul class="room-grid booking-grid">
+          {bookings.map((booking) => {
+            const date = longDate(booking.startTime.slice(0, 10));
+            return (
+              <li class="room-card">
+                <h2 class="card-title">{booking.room.name}</h2>
+                <p class="room-place">
+                  {booking.room.level && `${booking.room.level} · `}{booking.room.library}
+                </p>
+                <Facilities room={booking.room} />
+                <p class="room-facts">
+                  <time datetime={booking.startTime}>{date}</time>
+                  <span>{fullTimeRange(booking.startTime.slice(11), booking.endTime.slice(11))}</span>
+                  <span>Up to {peopleLabel(booking.room.capacity)}</span>
+                </p>
+                <form method="post" action="/bookings/cancel">
+                  <input type="hidden" name="bookingId" value={booking.id} />
+                  <button class="cancel-button" aria-label={`Cancel booking for ${booking.room.name} on ${date}`}>
+                    Cancel booking
+                  </button>
+                </form>
+              </li>
+            );
+          })}
         </ul>
       ) : (
-        <p>You have no bookings yet. <a href="/">Find a room</a></p>
+        <section class="empty" aria-labelledby="empty-heading">
+          <h2 id="empty-heading">No bookings yet.</h2>
+          <p>Tell us when you need a room and we'll show you what's free.</p>
+          <a class="button-primary" href="/">Find a room</a>
+        </section>
       )}
-    </main>
-  </body>
-</html>
+    </>
+  )}
+</Layout>

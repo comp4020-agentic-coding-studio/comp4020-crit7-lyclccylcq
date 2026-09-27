@@ -35,6 +35,17 @@ export function shortDate(date: string): string {
   }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
+// "2030-06-10" → "Monday 10 June"
+export function longDate(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 export function durationLabel(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
   const hours = minutes / 60;
